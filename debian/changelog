@@ -1,9 +1,21 @@
+python-pyslurm (17.02.0~git20170405-1~calibre9+1) calibre9; urgency=medium
+
+  * Backport to Calibre9
+
+ -- Rémi Palancher <remi-externe.palancher@edf.fr>  Wed, 05 Apr 2017 15:54:14 +0200
+
 python-pyslurm (17.02.0~git20170405-1) unstable; urgency=medium
 
   * Imported Upstream version 17.02.0~git20170405
   * Remove all patches as merged upstream
 
  -- Rémi Palancher <remi-externe.palancher@edf.fr>  Wed, 05 Apr 2017 15:15:51 +0200
+
+python-pyslurm (16.05.0~git20160915-2~calibre9+1) calibre9; urgency=medium
+
+  * Backport to Calibre9
+
+ -- Rémi Palancher <remi-externe.palancher@edf.fr>  Thu, 09 Feb 2017 10:27:08 +0100
 
 python-pyslurm (16.05.0~git20160915-2) unstable; urgency=medium
 
@@ -13,6 +25,12 @@ python-pyslurm (16.05.0~git20160915-2) unstable; urgency=medium
 
  -- Rémi Palancher <remi-externe.palancher@edf.fr>  Thu, 09 Feb 2017 10:21:26 +0100
 
+python-pyslurm (16.05.0~git20160915-1~calibre9+1) calibre9; urgency=medium
+
+  * Backport to Calibre9
+
+ -- Rémi Palancher <remi-externe.palancher@edf.fr>  Thu, 06 Oct 2016 18:18:28 +0200
+
 python-pyslurm (16.05.0~git20160915-1) unstable; urgency=medium
 
   * Imported Upstream version 16.05.0~git20160915
@@ -20,11 +38,23 @@ python-pyslurm (16.05.0~git20160915-1) unstable; urgency=medium
 
  -- Rémi Palancher <remi-externe.palancher@edf.fr>  Thu, 06 Oct 2016 16:57:43 +0200
 
+python-pyslurm (15.08.0~git20160229-2+c9+1) calibre9; urgency=medium
+
+  * Backport to Calibre9
+
+ -- Rémi Palancher <remi-externe.palancher@edf.fr>  Tue, 23 Aug 2016 10:07:29 +0200
+
 python-pyslurm (15.08.0~git20160229-2) unstable; urgency=medium
 
   * Add patch to fix topology hostlist bad format
 
  -- Rémi Palancher <remi-externe.palancher@edf.fr>  Tue, 23 Aug 2016 09:29:21 +0200
+
+python-pyslurm (15.08.0~git20160229-1+c9+1) calibre9; urgency=medium
+
+  * Backport to Calibre9
+
+ -- Rémi Palancher <remi-externe.palancher@edf.fr>  Mon, 29 Feb 2016 17:05:13 +0100
 
 python-pyslurm (15.08.0~git20160229-1) unstable; urgency=medium
 
@@ -32,6 +62,12 @@ python-pyslurm (15.08.0~git20160229-1) unstable; urgency=medium
   * Update patch queue using gbp-pq
 
  -- Rémi Palancher <remi-externe.palancher@edf.fr>  Mon, 29 Feb 2016 16:51:28 +0100
+
+python-pyslurm (14.11.0~git20150608-3+c9+1) calibre9; urgency=medium
+
+  * Backport to Calibre9
+
+ -- Rémi Palancher <remi-externe.palancher@edf.fr>  Fri, 06 Nov 2015 10:48:47 +0100
 
 python-pyslurm (14.11.0~git20150608-3) unstable; urgency=low
 
