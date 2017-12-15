@@ -1,11 +1,13 @@
 Source: python-pyslurm
 Priority: extra
-Maintainer: Rémi Palancher <remi-externe.palancher@edf.fr>
+Maintainer: Scibian Project <packaging@scibian.org>
 Section: python
 Build-Depends: debhelper (>= 9), python-setuptools (>= 0.6), libslurm-dev, libslurmdb-dev, cython (>= 0.21), python-dev
 X-Python-Version: >= 2.6
 Standards-Version: 3.9.6
 Homepage: http://www.gingergeeks.co.uk/pyslurm/
+Vcs-Browser: https://github.com/scibian/python-pyslurm
+Vcs-Git: https://github.com/scibian/python-pyslurm.git
 
 Package: python-pyslurm
 Architecture: any
