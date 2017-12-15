@@ -1,3 +1,9 @@
+python-pyslurm (17.02.0~git20170405-0sci8u3) scibian8; urgency=medium
+
+  * Use DEB_HOST_MULTIARCH in d/rules
+
+ -- Rémi Palancher <remi-externe.palancher@edf.fr>  Fri, 15 Dec 2017 11:10:45 +0100
+
 python-pyslurm (17.02.0~git20170405-0sci8u2) scibian8; urgency=medium
 
   * Add patch to bump support to 17.02.2
