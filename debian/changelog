@@ -1,3 +1,9 @@
+python-pyslurm (17.02.0~git20170405-0sci8u1) scibian8; urgency=medium
+
+  * Scibian8 rebuild.
+
+ -- Rémi Palancher <remi-externe.palancher@edf.fr>  Thu, 14 Dec 2017 17:15:44 +0100
+
 python-pyslurm (17.02.0~git20170405-1~calibre9+1) calibre9; urgency=medium
 
   * Backport to Calibre9
