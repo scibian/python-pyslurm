@@ -1,3 +1,14 @@
+python-pyslurm (17.11~3d822d8f-0sci8u1) scibian8; urgency=medium
+
+  [Mehdi Dogguy]
+  * Import new upstream release
+  * Add patch to fix check_libPath for Debian
+
+  [Rémi Palancher]
+  * Remove patch to bump supported version
+
+ -- Rémi Palancher <remi-externe.palancher@edf.fr>  Tue, 22 Mar 2018 09:44:13 +0100
+
 python-pyslurm (17.02.0~git20170405-0sci8u3) scibian8; urgency=medium
 
   * Use DEB_HOST_MULTIARCH in d/rules
