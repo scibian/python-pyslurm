@@ -1,3 +1,9 @@
+python-pyslurm (17.11~3d822d8f-0sci9u1) scibian9; urgency=medium
+
+  * Rebuild for scibian9.
+
+ -- Rémi Palancher <remi-externe.palancher@edf.fr>  Thu, 26 Apr 2018 17:10:33 +0200
+
 python-pyslurm (17.11~3d822d8f-0sci8u1) scibian8; urgency=medium
 
   [Mehdi Dogguy]
