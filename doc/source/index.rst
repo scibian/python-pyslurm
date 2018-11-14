@@ -19,12 +19,6 @@ Contents
    :maxdepth: 2
    :numbered:
 
-Block Class
-***********
-
-.. autoclass:: pyslurm.block
-   :members:
-
 Config Class
 ************
 
@@ -71,6 +65,30 @@ Reservation Class
 *****************
 
 .. autoclass:: pyslurm.reservation
+   :members:
+
+Slurmdb Events Class
+********************
+
+.. autoclass:: pyslurm.slurmdb_events
+   :members:
+
+Slurmdb Reservations Class
+**************************
+
+.. autoclass:: pyslurm.slurmdb_reservations
+   :members:
+
+Slurmdb Clusters Class
+**********************
+
+.. autoclass:: pyslurm.slurmdb_clusters
+   :members:
+
+Slurmdb Jobs Class
+******************
+
+.. autoclass:: pyslurm.slurmdb_jobs
    :members:
 
 Statistics Class
