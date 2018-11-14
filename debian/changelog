@@ -1,3 +1,10 @@
+python-pyslurm (18.08~git20181114-0sci9u1) scibian9; urgency=medium
+
+  * New upstream version 18.08~git20181114
+  * Update Fix-check_libPath patch
+
+ -- Rémi Palancher <remi-externe.palancher@edf.fr>  Wed, 14 Nov 2018 10:31:10 +0100
+
 python-pyslurm (17.11~3d822d8f-0sci9u1) scibian9; urgency=medium
 
   * Rebuild for scibian9.
