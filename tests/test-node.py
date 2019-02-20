@@ -40,7 +40,6 @@ def test_node_scontrol():
     assert_equals(test_node_info["alloc_mem"], int(sctl_dict["AllocMem"]))
     assert_equals(test_node_info["boards"], int(sctl_dict["Boards"]))
     assert_equals(test_node_info["alloc_cpus"], int(sctl_dict["CPUAlloc"]))
-    assert_equals(test_node_info["err_cpus"], int(sctl_dict["CPUErr"]))
     assert_equals(test_node_info["cpus"], int(sctl_dict["CPUTot"]))
     assert_equals(test_node_info["energy"]["consumed_energy"], int(sctl_dict["ConsumedJoules"]))
     assert_equals(test_node_info["cores"], int(sctl_dict["CoresPerSocket"]))
@@ -83,3 +82,39 @@ def test_node_update():
 
     node_test_after = pyslurm.node().find_id("c10")
     assert_equals(node_test_after["state"], "IDLE")
+
+
+def test_gres_used_parser():
+    """Node: Test node().parse_gres()."""
+    assert_equals(
+        pyslurm.node().parse_gres("gpu:p100:2(IDX:1,3),lscratch:0"),
+        ["gpu:p100:2(IDX:1,3)", "lscratch:0"]
+    )
+    assert_equals(
+        pyslurm.node().parse_gres("gpu:0,hbm:0"),
+        ["gpu:0", "hbm:0"]
+    )
+    assert_equals(
+        pyslurm.node().parse_gres("gpu:p100:0(IDX:N/A),hbm:0"),
+        ["gpu:p100:0(IDX:N/A)", "hbm:0"]
+    )
+    assert_equals(
+        pyslurm.node().parse_gres("gpu:p100:1(IDX:0),hbm:0"),
+        ["gpu:p100:1(IDX:0)", "hbm:0"]
+    )
+    assert_equals(
+        pyslurm.node().parse_gres("gpu:p100:1(IDX:1),hbm:0"),
+        ["gpu:p100:1(IDX:1)", "hbm:0"]
+    )
+    assert_equals(
+        pyslurm.node().parse_gres("gpu:p100:2(IDX:0-1),hbm:0"),
+        ["gpu:p100:2(IDX:0-1)", "hbm:0"]
+    )
+    assert_equals(
+        pyslurm.node().parse_gres("hbm:0"),
+        ["hbm:0"]
+    )
+    assert_equals(
+        pyslurm.node().parse_gres("lscratch:0,hbm:0"),
+        ["lscratch:0", "hbm:0"]
+    )
