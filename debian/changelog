@@ -1,3 +1,9 @@
+python-pyslurm (18.08~git20181114-0sci8u1) scibian8; urgency=medium
+
+  * Imported Upstream version 18.08~git20181114
+
+ -- MHamed Bouaziz <mhamed-externe.bouaziz@edf.fr>  Wed, 20 Feb 2019 15:08:38 +0100
+
 python-pyslurm (17.11~3d822d8f-0sci8u1) scibian8; urgency=medium
 
   [Mehdi Dogguy]
