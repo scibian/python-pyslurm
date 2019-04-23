@@ -1,3 +1,13 @@
+python-pyslurm (18.08~git20190423-0sci9u1) scibian9; urgency=medium
+
+  * New upstream version 18.08~git20190423
+  * Remove patch merged upstream
+  * Add build-dep on slurm plugins
+  * Update README.source
+  * Add patch to look for plugins libs in correct dir
+
+ -- Rémi Palancher <remi-externe.palancher@edf.fr>  Tue, 23 Apr 2019 14:16:09 +0200
+
 python-pyslurm (18.08~git20181114-0sci9u1) scibian9; urgency=medium
 
   * New upstream version 18.08~git20181114
