@@ -1211,10 +1211,10 @@ def slurm_delete_partition(PartID):
 #
 
 
-cpdef int slurm_ping(int Controller=1) except? -1:
+cpdef int slurm_ping(int Controller=0) except? -1:
     u"""Issue RPC to check if slurmctld is responsive.
 
-    :param int Controller: 1 for primary (Default=1), 2 for backup
+    :param int Controller: 0 for primary (Default=0), 1 for backup, 2 for backup2, ...
     :returns: 0 for success or slurm error code
     :rtype: `integer`
     """
@@ -3179,8 +3179,7 @@ cdef class node:
             uint32_t i
             list all_nodes
 
-        rc = slurm.slurm_load_node(<time_t> NULL, &self._Node_ptr,
-                                   self._ShowFlags)
+        rc = slurm.slurm_load_node(<time_t> NULL, &self._Node_ptr, self._ShowFlags)
 
         if rc == slurm.SLURM_SUCCESS:
             all_nodes = []
@@ -3233,197 +3232,211 @@ cdef class node:
             uint16_t err_cpus
             uint16_t alloc_cpus
             uint32_t i
+            uint32_t j
             uint64_t alloc_mem
             uint32_t node_state
             slurm.node_info_t *record
             dict Host_dict
             char time_str[32]
             char tmp_str[128]
+            int last_inx = 0
 
-        if nodeID is None:
-            rc = slurm.slurm_load_node(<time_t> NULL, &self._Node_ptr,
-                                       self._ShowFlags)
-        else:
-            b_nodeID = nodeID.encode("UTF-8")
-            rc = slurm.slurm_load_node_single(&self._Node_ptr, b_nodeID, self._ShowFlags)
+        rc = slurm.slurm_load_node(<time_t>NULL, &self._Node_ptr, self._ShowFlags)
 
-        if rc == slurm.SLURM_SUCCESS:
-            self._NodeDict = {}
-            self._lastUpdate = self._Node_ptr.last_update
-            last_update = self._Node_ptr.last_update
-
-            rc_part = slurm.slurm_load_partitions(<time_t> NULL, &self._Part_ptr,
-                                                  slurm.SHOW_ALL)
-
-            if rc_part == slurm.SLURM_SUCCESS:
-                slurm.slurm_populate_node_partitions(self._Node_ptr, self._Part_ptr)
-
-            for i in range(self._Node_ptr.record_count):
-                record = &self._Node_ptr.node_array[i]
-                Host_dict = {}
-                cloud_str = ""
-                comp_str = ""
-                drain_str = ""
-                power_str = ""
-                err_cpus = 0
-                alloc_cpus = 0
-
-                if record.name is NULL:
-                    continue
-
-                total_used = record.cpus
-
-                Host_dict[u'arch'] = slurm.stringOrNone(record.arch, '')
-                Host_dict[u'boards'] = record.boards
-                Host_dict[u'boot_time'] = record.boot_time
-                Host_dict[u'cores'] = record.cores
-                Host_dict[u'core_spec_cnt'] = record.core_spec_cnt
-                Host_dict[u'cores_per_socket'] = record.cores
-                # TODO: cpu_alloc, cpu_tot
-                Host_dict[u'cpus'] = record.cpus
-
-                # FIXME
-                #if record.cpu_bind:
-                #    slurm.slurm_sprint_cpu_bind_type(tmp_str, record.cpu_bind)
-                #    Host_dict[u'cpu_bind'] = slurm.stringOrNone(tmp_str, '')
-
-                Host_dict[u'cpu_load'] = slurm.int32orNone(record.cpu_load)
-                Host_dict[u'cpu_spec_list'] = slurm.listOrNone(record.cpu_spec_list, '')
-                Host_dict[u'features'] = slurm.listOrNone(record.features, '')
-                Host_dict[u'features_active'] = slurm.listOrNone(record.features_act, '')
-                Host_dict[u'free_mem'] = slurm.int64orNone(record.free_mem)
-                Host_dict[u'gres'] = slurm.listOrNone(record.gres, ',')
-                Host_dict[u'gres_drain'] = slurm.listOrNone(record.gres_drain, '')
-                Host_dict[u'gres_used'] = self.parse_gres(
-                    slurm.stringOrNone(record.gres_used, '')
-                )
-
-                if record.mcs_label == NULL:
-                    Host_dict[u'mcs_label'] = None
-                else:
-                    Host_dict[u'mcs_label'] = record.mcs_label
-
-                Host_dict[u'mem_spec_limit'] = record.mem_spec_limit
-                Host_dict[u'name'] = slurm.stringOrNone(record.name, '')
-
-                # TODO: next_state
-                Host_dict[u'node_addr'] = slurm.stringOrNone(record.node_addr, '')
-                Host_dict[u'node_hostname'] = slurm.stringOrNone(record.node_hostname, '')
-                Host_dict[u'os'] = slurm.stringOrNone(record.os, '')
-
-                if record.owner == slurm.NO_VAL:
-                    Host_dict[u'owner'] = None
-                else:
-                    Host_dict[u'owner'] = record.owner
-
-                Host_dict[u'partitions'] = slurm.listOrNone(record.partitions, ',')
-                Host_dict[u'real_memory'] = record.real_memory
-                Host_dict[u'slurmd_start_time'] = record.slurmd_start_time
-                Host_dict[u'sockets'] = record.sockets
-                Host_dict[u'threads'] = record.threads
-                Host_dict[u'tmp_disk'] = record.tmp_disk
-                Host_dict[u'weight'] = record.weight
-                Host_dict[u'tres_fmt_str'] = slurm.stringOrNone(record.tres_fmt_str, '')
-                Host_dict[u'version'] = slurm.stringOrNone(record.version, '')
-
-                Host_dict[u'reason'] = slurm.stringOrNone(record.reason, '')
-                if record.reason_time == 0:
-                    Host_dict[u'reason_time'] = None
-                else:
-                    Host_dict[u'reason_time'] = record.reason_time
-
-                if record.reason_uid == slurm.NO_VAL:
-                    Host_dict[u'reason_uid'] = None
-                else:
-                    Host_dict[u'reason_uid'] = record.reason_uid
-
-                # Power Managment
-                Host_dict[u'power_mgmt'] = {}
-                if (not record.power or (record.power.cap_watts == slurm.NO_VAL)):
-                    Host_dict[u'power_mgmt'][u"cap_watts"] = None
-                else:
-                    Host_dict[u'power_mgmt'][u"cap_watts"] = record.power.cap_watts
-
-                # Energy statistics
-                Host_dict[u'energy'] = {}
-                if (not record.energy or record.energy.current_watts == slurm.NO_VAL):
-                    Host_dict[u'energy'][u'current_watts'] = 0
-                    Host_dict[u'energy'][u'base_consumed_energy'] = 0
-                    Host_dict[u'energy'][u'consumed_energy'] = 0
-                else:
-                    Host_dict[u'energy'][u'current_watts'] = record.energy.current_watts
-                    Host_dict[u'energy'][u'base_consumed_energy'] = int(record.energy.base_consumed_energy)
-                    Host_dict[u'energy'][u'consumed_energy'] = int(record.energy.consumed_energy)
-
-                Host_dict[u'energy'][u'base_watts'] = record.energy.base_watts
-                Host_dict[u'energy'][u'previous_consumed_energy'] = int(record.energy.previous_consumed_energy)
-
-                node_state = record.node_state
-                if (node_state & NODE_STATE_CLOUD):
-                    node_state &= (~NODE_STATE_CLOUD)
-                    cloud_str = "+CLOUD"
-
-                if (node_state & NODE_STATE_COMPLETING):
-                    node_state &= (~NODE_STATE_COMPLETING)
-                    comp_str = "+COMPLETING"
-
-                if (node_state & NODE_STATE_DRAIN):
-                    node_state &= (~NODE_STATE_DRAIN)
-                    drain_str = "+DRAIN"
-
-                if (node_state & NODE_STATE_FAIL):
-                    node_state &= (~NODE_STATE_FAIL)
-                    drain_str = "+FAIL"
-
-                if (node_state & NODE_STATE_POWER_SAVE):
-                    node_state &= (~NODE_STATE_POWER_SAVE)
-                    power_str = "+POWER"
-
-                slurm.slurm_get_select_nodeinfo(record.select_nodeinfo,
-                                                SELECT_NODEDATA_SUBCNT,
-                                                NODE_STATE_ALLOCATED,
-                                                &alloc_cpus)
-
-                Host_dict[u'alloc_cpus'] = alloc_cpus
-                total_used -= alloc_cpus
-
-                slurm.slurm_get_select_nodeinfo(record.select_nodeinfo,
-                                                SELECT_NODEDATA_SUBCNT,
-                                                NODE_STATE_ERROR, &err_cpus)
-
-                Host_dict[u'err_cpus'] = err_cpus
-                total_used -= err_cpus
-
-                if (alloc_cpus and err_cpus) or (total_used and
-                   (total_used != record.cpus)):
-                    node_state &= NODE_STATE_FLAGS
-                    node_state |= NODE_STATE_MIXED
-
-                Host_dict[u'state'] = (
-                    slurm.stringOrNone(slurm.slurm_node_state_string(node_state), '') +
-                    slurm.stringOrNone(cloud_str, '') +
-                    slurm.stringOrNone(comp_str, '') +
-                    slurm.stringOrNone(drain_str, '') +
-                    slurm.stringOrNone(power_str, '')
-                )
-
-                slurm.slurm_get_select_nodeinfo(record.select_nodeinfo,
-                                                SELECT_NODEDATA_MEM_ALLOC,
-                                                NODE_STATE_ALLOCATED, &alloc_mem)
-
-                Host_dict[u'alloc_mem'] = alloc_mem
-
-                b_name = slurm.stringOrNone(record.name, '')
-                self._NodeDict[b_name] = Host_dict
-
-            slurm.slurm_free_node_info_msg(self._Node_ptr)
-            slurm.slurm_free_partition_info_msg(self._Part_ptr)
-            self._Node_ptr = NULL
-            self._Part_ptr = NULL
-            return self._NodeDict
-        else:
+        if rc != slurm.SLURM_SUCCESS:
             apiError = slurm.slurm_get_errno()
             raise ValueError(slurm.stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
+
+        rc_part = slurm.slurm_load_partitions(<time_t>NULL, &self._Part_ptr, slurm.SHOW_ALL)
+
+        if rc_part != slurm.SLURM_SUCCESS:
+            self._Part_ptr = NULL
+            slurm.slurm_perror("slurm_load_partitions error")
+
+        slurm.slurm_populate_node_partitions(self._Node_ptr, self._Part_ptr)
+
+        self._lastUpdate = self._Node_ptr.last_update
+        self._NodeDict = {}
+
+        for j in range(self._Node_ptr.record_count):
+            if nodeID:
+                i = (j + last_inx) % self._Node_ptr.record_count
+                if self._Node_ptr.node_array[i].name == NULL or (
+                    nodeID.encode("UTF-8") != self._Node_ptr.node_array[i].name):
+                    continue
+            elif self._Node_ptr.node_array[j].name == NULL:
+                continue
+            else:
+                i = j
+
+            record = &self._Node_ptr.node_array[i]
+
+            Host_dict = {}
+            cloud_str = ""
+            comp_str = ""
+            drain_str = ""
+            power_str = ""
+            err_cpus = 0
+            alloc_cpus = 0
+
+            if record.name is NULL:
+                continue
+
+            total_used = record.cpus
+
+            Host_dict[u'arch'] = slurm.stringOrNone(record.arch, '')
+            Host_dict[u'boards'] = record.boards
+            Host_dict[u'boot_time'] = record.boot_time
+            Host_dict[u'cores'] = record.cores
+            Host_dict[u'core_spec_cnt'] = record.core_spec_cnt
+            Host_dict[u'cores_per_socket'] = record.cores
+            # TODO: cpu_alloc, cpu_tot
+            Host_dict[u'cpus'] = record.cpus
+
+            # FIXME
+            #if record.cpu_bind:
+            #    slurm.slurm_sprint_cpu_bind_type(tmp_str, record.cpu_bind)
+            #    Host_dict[u'cpu_bind'] = slurm.stringOrNone(tmp_str, '')
+
+            Host_dict[u'cpu_load'] = slurm.int32orNone(record.cpu_load)
+            Host_dict[u'cpu_spec_list'] = slurm.listOrNone(record.cpu_spec_list, '')
+            Host_dict[u'features'] = slurm.listOrNone(record.features, '')
+            Host_dict[u'features_active'] = slurm.listOrNone(record.features_act, '')
+            Host_dict[u'free_mem'] = slurm.int64orNone(record.free_mem)
+            Host_dict[u'gres'] = slurm.listOrNone(record.gres, ',')
+            Host_dict[u'gres_drain'] = slurm.listOrNone(record.gres_drain, '')
+            Host_dict[u'gres_used'] = self.parse_gres(
+                slurm.stringOrNone(record.gres_used, '')
+            )
+
+            if record.mcs_label == NULL:
+                Host_dict[u'mcs_label'] = None
+            else:
+                Host_dict[u'mcs_label'] = record.mcs_label
+
+            Host_dict[u'mem_spec_limit'] = record.mem_spec_limit
+            Host_dict[u'name'] = slurm.stringOrNone(record.name, '')
+
+            # TODO: next_state
+            Host_dict[u'node_addr'] = slurm.stringOrNone(record.node_addr, '')
+            Host_dict[u'node_hostname'] = slurm.stringOrNone(record.node_hostname, '')
+            Host_dict[u'os'] = slurm.stringOrNone(record.os, '')
+
+            if record.owner == slurm.NO_VAL:
+                Host_dict[u'owner'] = None
+            else:
+                Host_dict[u'owner'] = record.owner
+
+            Host_dict[u'partitions'] = slurm.listOrNone(record.partitions, ',')
+            Host_dict[u'real_memory'] = record.real_memory
+            Host_dict[u'slurmd_start_time'] = record.slurmd_start_time
+            Host_dict[u'sockets'] = record.sockets
+            Host_dict[u'threads'] = record.threads
+            Host_dict[u'tmp_disk'] = record.tmp_disk
+            Host_dict[u'weight'] = record.weight
+            Host_dict[u'tres_fmt_str'] = slurm.stringOrNone(record.tres_fmt_str, '')
+            Host_dict[u'version'] = slurm.stringOrNone(record.version, '')
+
+            Host_dict[u'reason'] = slurm.stringOrNone(record.reason, '')
+            if record.reason_time == 0:
+                Host_dict[u'reason_time'] = None
+            else:
+                Host_dict[u'reason_time'] = record.reason_time
+
+            if record.reason_uid == slurm.NO_VAL:
+                Host_dict[u'reason_uid'] = None
+            else:
+                Host_dict[u'reason_uid'] = record.reason_uid
+
+            # Power Management
+            Host_dict[u'power_mgmt'] = {}
+            if (not record.power or (record.power.cap_watts == slurm.NO_VAL)):
+                Host_dict[u'power_mgmt'][u"cap_watts"] = None
+            else:
+                Host_dict[u'power_mgmt'][u"cap_watts"] = record.power.cap_watts
+
+            # Energy statistics
+            Host_dict[u'energy'] = {}
+            if (not record.energy or record.energy.current_watts == slurm.NO_VAL):
+                Host_dict[u'energy'][u'current_watts'] = 0
+                Host_dict[u'energy'][u'base_consumed_energy'] = 0
+                Host_dict[u'energy'][u'consumed_energy'] = 0
+            else:
+                Host_dict[u'energy'][u'current_watts'] = record.energy.current_watts
+                Host_dict[u'energy'][u'base_consumed_energy'] = int(record.energy.base_consumed_energy)
+                Host_dict[u'energy'][u'consumed_energy'] = int(record.energy.consumed_energy)
+
+            Host_dict[u'energy'][u'base_watts'] = record.energy.base_watts
+            Host_dict[u'energy'][u'previous_consumed_energy'] = int(record.energy.previous_consumed_energy)
+
+            node_state = record.node_state
+            if (node_state & NODE_STATE_CLOUD):
+                node_state &= (~NODE_STATE_CLOUD)
+                cloud_str = "+CLOUD"
+
+            if (node_state & NODE_STATE_COMPLETING):
+                node_state &= (~NODE_STATE_COMPLETING)
+                comp_str = "+COMPLETING"
+
+            if (node_state & NODE_STATE_DRAIN):
+                node_state &= (~NODE_STATE_DRAIN)
+                drain_str = "+DRAIN"
+
+            if (node_state & NODE_STATE_FAIL):
+                node_state &= (~NODE_STATE_FAIL)
+                drain_str = "+FAIL"
+
+            if (node_state & NODE_STATE_POWER_SAVE):
+                node_state &= (~NODE_STATE_POWER_SAVE)
+                power_str = "+POWER"
+
+            slurm.slurm_get_select_nodeinfo(record.select_nodeinfo,
+                                            SELECT_NODEDATA_SUBCNT,
+                                            NODE_STATE_ALLOCATED,
+                                            &alloc_cpus)
+
+            Host_dict[u'alloc_cpus'] = alloc_cpus
+            total_used -= alloc_cpus
+
+            slurm.slurm_get_select_nodeinfo(record.select_nodeinfo,
+                                            SELECT_NODEDATA_SUBCNT,
+                                            NODE_STATE_ERROR, &err_cpus)
+
+            Host_dict[u'err_cpus'] = err_cpus
+            total_used -= err_cpus
+
+            if (alloc_cpus and err_cpus) or (total_used and
+               (total_used != record.cpus)):
+                node_state &= NODE_STATE_FLAGS
+                node_state |= NODE_STATE_MIXED
+
+            Host_dict[u'state'] = (
+                slurm.stringOrNone(slurm.slurm_node_state_string(node_state), '') +
+                slurm.stringOrNone(cloud_str, '') +
+                slurm.stringOrNone(comp_str, '') +
+                slurm.stringOrNone(drain_str, '') +
+                slurm.stringOrNone(power_str, '')
+            )
+
+            slurm.slurm_get_select_nodeinfo(record.select_nodeinfo,
+                                            SELECT_NODEDATA_MEM_ALLOC,
+                                            NODE_STATE_ALLOCATED, &alloc_mem)
+
+            Host_dict[u'alloc_mem'] = alloc_mem
+
+            b_name = slurm.stringOrNone(record.name, '')
+            self._NodeDict[b_name] = Host_dict
+
+            if nodeID:
+                last_inx = i
+                break
+
+        slurm.slurm_free_node_info_msg(self._Node_ptr)
+        slurm.slurm_free_partition_info_msg(self._Part_ptr)
+        self._Node_ptr = NULL
+        self._Part_ptr = NULL
+        return self._NodeDict
+
 
     cpdef update(self, dict node_dict):
         u"""Update slurm node information.
@@ -5256,7 +5269,18 @@ cdef class slurmdb_jobs:
     def get(self, jobids=[], starttime=0, endtime=0):
         u"""Get Slurmdb information about some jobs.
 
-        :param jobids: Ids of the jobs to search. [] for any id
+        Input formats for start and end times:
+        *   today or tomorrow
+        *   midnight, noon, teatime (4PM)
+        *   HH:MM [AM|PM]
+        *   MMDDYY or MM/DD/YY or MM.DD.YY
+        *   YYYY-MM-DD[THH[:MM[:SS]]]
+        *   now + count [minutes | hours | days | weeks]
+        *
+        Invalid time input results in message to stderr and return value of
+        zero.
+
+        :param jobids: Ids of the jobs to search. Defaults to all jobs.
         :param starttime: Select jobs eligible after this timestamp
         :param endtime: Select jobs eligible before this timestamp
         :returns: Dictionary whose key is the JOBS ID
@@ -5265,10 +5289,31 @@ cdef class slurmdb_jobs:
         cdef:
             int i = 0
             int listNum = 0
-            dict J_dict = {}
             int apiError = 0
+            dict J_dict = {}
             slurm.List JOBSList
             slurm.ListIterator iters = NULL
+
+        if jobids:
+            self.job_cond.step_list = slurm.slurm_list_create(NULL)
+            for _jobid in jobids:
+                if isinstance(_jobid, int) or isinstance(_jobid, long):
+                    _jobid = str(_jobid).encode("UTF-8")
+                else:
+                    _jobid = _jobid.encode("UTF-8")
+                slurm.slurm_addto_step_list(self.job_cond.step_list, _jobid)
+
+        if starttime:
+            self.job_cond.usage_start = slurm.slurm_parse_time(starttime, 1)
+            errno = slurm.slurm_get_errno()
+            if errno == slurm.ESLURM_INVALID_TIME_VALUE:
+                raise ValueError(slurm.slurm_strerror(errno), errno)
+
+        if endtime:
+            self.job_cond.usage_end = slurm.slurm_parse_time(endtime, 1)
+            errno = slurm.slurm_get_errno()
+            if errno == slurm.ESLURM_INVALID_TIME_VALUE:
+                raise ValueError(slurm.slurm_strerror(errno), errno)
 
         JOBSList = slurm.slurmdb_jobs_get(self.db_conn, self.job_cond)
 
@@ -5318,6 +5363,7 @@ cdef class slurmdb_jobs:
                 JOBS_info[u'show_full'] = job.show_full
                 JOBS_info[u'start'] = job.start
                 JOBS_info[u'state'] = job.state
+                JOBS_info[u'state_str'] = slurm.slurm_job_state_string(job.state)
 
                 JOBS_info[u'stat_actual_cpufreq'] = job.stats.act_cpufreq
 
@@ -5352,24 +5398,14 @@ cdef class slurmdb_reservations:
     u"""Class to access Slurmdbd reservations information."""
 
     cdef:
-        slurm.slurmdb_reservation_cond_t *reservation_cond
         void *dbconn
-        dict _RSVDict
-        slurm.List _resvList
+        slurm.slurmdb_reservation_cond_t *reservation_cond
 
     def __cinit__(self):
-        self.dbconn = <void *>NULL
-        self._RSVDict = {}
-        self.reservation_cond = <slurm.slurmdb_reservation_cond_t *>NULL
+        self.reservation_cond = <slurm.slurmdb_reservation_cond_t *>slurm.xmalloc(sizeof(slurm.slurmdb_reservation_cond_t))
 
     def __dealloc__(self):
-        self.__destroy()
-
-    cpdef __destroy(self):
-        u"""Destructor method."""
-        self._RSVDict = {}
-        if self.reservation_cond != NULL:
-            slurm.slurmdb_destroy_reservation_cond(self.reservation_cond)
+        slurm.slurmdb_destroy_reservation_cond(self.reservation_cond)
 
     def set_reservation_condition(self, start_time, end_time):
         u"""Limit the next get() call to reservations that start after and before a certain time.
@@ -5377,11 +5413,9 @@ cdef class slurmdb_reservations:
         :param start_time: Select reservations that start after this timestamp
         :param end_time: Select reservations that end before this timestamp
         """
-        self.__set_reservation_condition(start_time, end_time)
-
-    cpdef __set_reservation_condition(self, slurm.time_t start_time, slurm.time_t end_time):
         if self.reservation_cond == NULL:
             self.reservation_cond = <slurm.slurmdb_reservation_cond_t *>slurm.xmalloc(sizeof(slurm.slurmdb_reservation_cond_t))
+
         if self.reservation_cond != NULL:
             self.reservation_cond.with_usage = 1
             self.reservation_cond.time_start = <slurm.time_t>start_time
@@ -5389,85 +5423,74 @@ cdef class slurmdb_reservations:
         else:
             raise MemoryError()
 
-    cpdef int __load(self) except? -1:
-        cdef:
-            int apiError = 0
-            void* dbconn = slurm.slurmdb_connection_get()
-            slurm.List resvList = slurm.slurmdb_reservations_get(dbconn, self.reservation_cond)
-
-        if resvList is NULL:
-            apiError = slurm.slurm_get_errno()
-            raise ValueError(slurm.slurm_strerror(apiError), apiError)
-        else:
-            self._resvList = resvList
-
-        slurm.slurmdb_connection_close(&dbconn)
-        return 0
-
     def get(self):
         u"""Get slurm reservations information.
 
         :returns: Dictionary whose keys are the reservations ids
         :rtype: `dict`
         """
-        self.__load()
-        self.__get()
-        return self._RSVDict
-
-    cpdef __get(self):
         cdef:
-            slurm.List reservations_list = NULL
+            slurm.List reservation_list
             slurm.ListIterator iters = NULL
+            slurm.slurmdb_reservation_rec_t *reservation
             int i = 0
-            int listNum = 0
-            dict R_dict = {}
+            int j = 0
+            int listNum
+            slurm.List _resvList
 
-        if self._resvList is not NULL:
-            listNum = slurm.slurm_list_count(self._resvList)
-            iters = slurm.slurm_list_iterator_create(self._resvList)
+        Reservation_dict = {}
+        reservation_list = slurm.slurmdb_reservations_get(self.dbconn, self.reservation_cond)
+
+        if reservation_list is not NULL:
+            listNum = slurm.slurm_list_count(reservation_list)
+            iters = slurm.slurm_list_iterator_create(reservation_list)
+
             for i in range(listNum):
                 reservation = <slurm.slurmdb_reservation_rec_t *>slurm.slurm_list_next(iters)
+                Reservation_rec_dict = {}
 
-                # RESERVATIONS infos
-                resv_info = {}
                 if reservation is not NULL:
                     reservation_id = reservation.id
-                    resv_info[u'name'] = slurm.stringOrNone(reservation.name, '')
-                    resv_info[u'nodes'] = slurm.stringOrNone(reservation.nodes, '')
-                    resv_info[u'node_index'] = slurm.stringOrNone(reservation.node_inx, '')
-                    resv_info[u'associations'] = slurm.stringOrNone(reservation.assocs, '')
-                    resv_info[u'cluster'] = slurm.stringOrNone(reservation.cluster, '')
-                    resv_info[u'tres_str'] = slurm.stringOrNone(reservation.tres_str, '')
-                    resv_info[u'reservation_id'] = reservation.id
-                    resv_info[u'time_start'] = reservation.time_start
-                    resv_info[u'time_start_prev'] = reservation.time_start_prev
-                    resv_info[u'time_end'] = reservation.time_end
-                    resv_info[u'flags'] = reservation.flags
+                    Reservation_rec_dict[u'name'] = slurm.stringOrNone(reservation.name, '')
+                    Reservation_rec_dict[u'nodes'] = slurm.stringOrNone(reservation.nodes, '')
+                    Reservation_rec_dict[u'node_index'] = slurm.stringOrNone(reservation.node_inx, '')
+                    Reservation_rec_dict[u'associations'] = slurm.stringOrNone(reservation.assocs, '')
+                    Reservation_rec_dict[u'cluster'] = slurm.stringOrNone(reservation.cluster, '')
+                    Reservation_rec_dict[u'tres_str'] = slurm.stringOrNone(reservation.tres_str, '')
+                    Reservation_rec_dict[u'reservation_id'] = reservation.id
+                    Reservation_rec_dict[u'time_start'] = reservation.time_start
+                    Reservation_rec_dict[u'time_start_prev'] = reservation.time_start_prev
+                    Reservation_rec_dict[u'time_end'] = reservation.time_end
+                    Reservation_rec_dict[u'flags'] = reservation.flags
+
                     if reservation.tres_list != NULL:
                         num_tres = slurm.slurm_list_count(reservation.tres_list)
                         tres_iters = slurm.slurm_list_iterator_create(reservation.tres_list)
                         tres_dict = {}
-                        resv_info[u'num_tres'] = num_tres
+                        Reservation_rec_dict[u'num_tres'] = num_tres
+
                         for j in range(num_tres):
                             tres = <slurm.slurmdb_tres_rec_t *>slurm.slurm_list_next(tres_iters)
                             if tres is not NULL:
                                 tmp_tres_dict = {}
                                 tres_id = tres.id
-                                if (tres.name is not NULL):
-                                    tmp_tres_dict[u'name'] = slurm.stringOrNone(tres.name,'')
-                                if (tres.type is not NULL):
-                                    tmp_tres_dict[u'type'] = slurm.stringOrNone(tres.type,'')
+                                tmp_tres_dict[u'name'] = slurm.stringOrNone(tres.name,'')
+                                tmp_tres_dict[u'type'] = slurm.stringOrNone(tres.type,'')
                                 tmp_tres_dict[u'rec_count'] = tres.rec_count
                                 tmp_tres_dict[u'count'] = tres.count
                                 tmp_tres_dict[u'tres_id'] = tres.id
                                 tmp_tres_dict[u'alloc_secs'] = tres.alloc_secs
                                 tres_dict[tres_id] = tmp_tres_dict
-                        resv_info[u'tres_list'] = tres_dict
+
+                        Reservation_rec_dict[u'tres_list'] = tres_dict
                         slurm.slurm_list_iterator_destroy(tres_iters)
-                    R_dict[reservation_id] = resv_info
+
+                    Reservation_dict[reservation_id] = Reservation_rec_dict
+
             slurm.slurm_list_iterator_destroy(iters)
-            slurm.slurm_list_destroy(self._resvList)
-        self._RSVDict = R_dict
+            slurm.slurm_list_destroy(reservation_list)
+
+        return Reservation_dict
 
 #
 # slurmdbd clusters Class
@@ -5590,24 +5613,14 @@ cdef class slurmdb_events:
     u"""Class to access Slurmdbd events information."""
 
     cdef:
-        slurm.slurmdb_event_cond_t *event_cond
         void *dbconn
-        dict _EVENTSDict
-        slurm.List _EVENTSList
+        slurm.slurmdb_event_cond_t *event_cond
 
     def __cinit__(self):
-        self.dbconn = <void *>NULL
-        self._EVENTSDict = {}
-        self.event_cond = <slurm.slurmdb_event_cond_t *>NULL
+        self.event_cond = <slurm.slurmdb_event_cond_t *>slurm.xmalloc(sizeof(slurm.slurmdb_event_cond_t))
 
     def __dealloc__(self):
-        self.__destroy()
-
-    cpdef __destroy(self):
-        u"""Destructor method."""
-        self._EVENTSDict = {}
-        if self.event_cond != NULL:
-            slurm.slurmdb_destroy_event_cond(self.event_cond)
+        slurm.slurmdb_destroy_event_cond(self.event_cond)
 
     def set_event_condition(self, start_time, end_time):
         u"""Limit the next get() call to conditions that existed after and before a certain time.
@@ -5615,11 +5628,9 @@ cdef class slurmdb_events:
         :param start_time: Select conditions that existed after this timestamp
         :param end_time: Select conditions that existed before this timestamp
         """
-        self.__set_event_condition(start_time, end_time)
-
-    cpdef __set_event_condition(self, slurm.time_t start_time, slurm.time_t end_time):
         if self.event_cond == NULL:
             self.event_cond = <slurm.slurmdb_event_cond_t *>slurm.xmalloc(sizeof(slurm.slurmdb_event_cond_t))
+
         if self.event_cond != NULL:
             ##self.event_cond.with_usage = 1
             self.event_cond.period_start = <slurm.time_t>start_time
@@ -5627,64 +5638,154 @@ cdef class slurmdb_events:
         else:
             raise MemoryError()
 
-    cpdef int __load(self) except? -1:
-        cdef:
-            int apiError = 0
-            void* dbconn = slurm.slurmdb_connection_get()
-            slurm.List EVENTSList = slurm.slurmdb_events_get(dbconn, self.event_cond)
-
-        if EVENTSList is NULL:
-            apiError = slurm.slurm_get_errno()
-            raise ValueError(slurm.slurm_strerror(apiError), apiError)
-        else:
-            self._EVENTSList = EVENTSList
-
-        slurm.slurmdb_connection_close(&dbconn)
-        return 0
-
     def get(self):
         u"""Get slurm events information.
 
         :returns: Dictionary whose keys are the events ids
         :rtype: `dict`
         """
-        self.__load()
-        self.__get()
-        return self._EVENTSDict
-
-    cpdef __get(self):
         cdef:
-            slurm.List events_list = NULL
+            slurm.List event_list
             slurm.ListIterator iters = NULL
+            slurm.slurmdb_event_rec_t *event = NULL
             int i = 0
             int listNum = 0
-            dict E_dict = {}
 
-        if self._EVENTSList is not NULL:
-            listNum = slurm.slurm_list_count(self._EVENTSList)
-            iters = slurm.slurm_list_iterator_create(self._EVENTSList)
+        Event_dict = {}
+        event_list = slurm.slurmdb_events_get(self.dbconn, self.event_cond)
+
+        if event_list is not NULL:
+            listNum = slurm.slurm_list_count(event_list)
+            iters = slurm.slurm_list_iterator_create(event_list)
+
             for i in range(listNum):
                 event = <slurm.slurmdb_event_rec_t *>slurm.slurm_list_next(iters)
+                event_rec_dict = {}
 
-                # EVENTS infos
-                EVENTS_info = {}
                 if event is not NULL:
                     event_id = event.period_start
-                    EVENTS_info[u'cluster'] = slurm.stringOrNone(event.cluster, '')
-                    EVENTS_info[u'cluster_nodes'] = slurm.stringOrNone(event.cluster_nodes, '')
-                    EVENTS_info[u'node_name'] = slurm.stringOrNone(event.node_name, '')
-                    EVENTS_info[u'reason'] = slurm.stringOrNone(event.reason, '')
-                    EVENTS_info[u'tres_str'] = slurm.stringOrNone(event.tres_str, '')
-                    EVENTS_info[u'event_type'] = event.event_type
-                    EVENTS_info[u'time_start'] = event.period_start
-                    EVENTS_info[u'time_end'] = event.period_end
-                    EVENTS_info[u'tres_str'] = event.tres_str
-                    EVENTS_info[u'state'] = event.state
-                    EVENTS_info[u'reason_uid'] = event.reason_uid
-                    E_dict[event_id] = EVENTS_info
+                    event_rec_dict[u'cluster'] = slurm.stringOrNone(event.cluster, '')
+                    event_rec_dict[u'cluster_nodes'] = slurm.stringOrNone(event.cluster_nodes, '')
+                    event_rec_dict[u'node_name'] = slurm.stringOrNone(event.node_name, '')
+                    event_rec_dict[u'reason'] = slurm.stringOrNone(event.reason, '')
+                    event_rec_dict[u'tres_str'] = slurm.stringOrNone(event.tres_str, '')
+                    event_rec_dict[u'event_type'] = event.event_type
+                    event_rec_dict[u'time_start'] = event.period_start
+                    event_rec_dict[u'time_end'] = event.period_end
+                    event_rec_dict[u'tres_str'] = event.tres_str
+                    event_rec_dict[u'state'] = event.state
+                    event_rec_dict[u'reason_uid'] = event.reason_uid
+
+                    Event_dict[event_id] = event_rec_dict
+
             slurm.slurm_list_iterator_destroy(iters)
-            slurm.slurm_list_destroy(self._EVENTSList)
-        self._EVENTSDict = E_dict
+            slurm.slurm_list_destroy(event_list)
+
+        return Event_dict
+
+#
+# SlurmDB Reports (sreport)
+#
+
+cdef class slurmdb_reports:
+    u"""Class to access Slurmdbd reports."""
+
+    cdef:
+        void *db_conn
+        slurm.slurmdb_assoc_cond_t *assoc_cond
+
+    def __cinit__(self):
+        self.assoc_cond = <slurm.slurmdb_assoc_cond_t *>slurm.xmalloc(sizeof(slurm.slurmdb_assoc_cond_t))
+
+    def __dealloc__(self):
+        slurm.slurmdb_destroy_assoc_cond(self.assoc_cond)
+
+    def report_cluster_account_by_user(self, starttime=None, endtime=None):
+        """
+        sreport cluster AccountUtilizationByUser
+        """
+        cdef:
+            slurm.List slurmdb_report_cluster_list = NULL
+            slurm.ListIterator itr = NULL
+            slurm.ListIterator cluster_itr = NULL
+            slurm.ListIterator tres_itr = NULL
+            slurm.slurmdb_cluster_cond_t cluster_cond
+            slurm.slurmdb_report_assoc_rec_t *slurmdb_report_assoc = NULL
+            slurm.slurmdb_report_cluster_rec_t *slurmdb_report_cluster = NULL
+            slurm.slurmdb_tres_rec_t *tres
+            time_t start_time
+            time_t end_time
+            int i
+            int j
+
+        slurm.slurmdb_init_cluster_cond(&cluster_cond, 0)
+        self.assoc_cond.with_sub_accts = 1
+
+        if starttime:
+            self.assoc_cond.usage_start = slurm.slurm_parse_time(starttime, 1)
+
+        if endtime:
+            self.assoc_cond.usage_end = slurm.slurm_parse_time(endtime, 1)
+
+        start_time = self.assoc_cond.usage_start
+        end_time = self.assoc_cond.usage_end
+        slurm.slurmdb_report_set_start_end_time(&start_time, &end_time)
+        self.assoc_cond.usage_start = start_time
+        self.assoc_cond.usage_end = end_time
+
+        self.assoc_cond.with_usage = 1
+        self.assoc_cond.with_deleted = 1
+
+        slurmdb_report_cluster_list = slurm.slurmdb_report_cluster_account_by_user(
+            self.db_conn, self.assoc_cond
+        )
+
+        if slurmdb_report_cluster_list is NULL:
+            slurm.slurmdb_destroy_assoc_cond(self.assoc_cond)
+            slurm.slurm_list_destroy(slurmdb_report_cluster_list)
+            slurmdb_report_cluster_list = NULL
+            sys.exit(0)
+
+        cluster_itr = slurm.slurm_list_iterator_create(slurmdb_report_cluster_list)
+        Cluster_dict = {}
+
+        for i in range(slurm.slurm_list_count(slurmdb_report_cluster_list)):
+            slurmdb_report_cluster = <slurm.slurmdb_report_cluster_rec_t *>slurm.slurm_list_next(cluster_itr)
+            cluster_name = slurm.stringOrNone(slurmdb_report_cluster.name, '')
+            Cluster_dict[cluster_name] = {}
+            itr = slurm.slurm_list_iterator_create(slurmdb_report_cluster.assoc_list)
+
+            for j in range(slurm.slurm_list_count(slurmdb_report_cluster.assoc_list)):
+                slurmdb_report_assoc = <slurm.slurmdb_report_assoc_rec_t *>slurm.slurm_list_next(itr)
+                Assoc_dict = {}
+                Assoc_dict["account"] = slurm.stringOrNone(slurmdb_report_assoc.acct, '')
+                Assoc_dict["cluster"] = slurm.stringOrNone(slurmdb_report_assoc.cluster, '')
+                Assoc_dict["parent_account"] = slurm.stringOrNone(slurmdb_report_assoc.parent_acct, '')
+                Assoc_dict["user"] = slurm.stringOrNone(slurmdb_report_assoc.user, '')
+                Assoc_dict["tres_list"] = []
+                tres_itr = slurm.slurm_list_iterator_create(slurmdb_report_assoc.tres_list)
+
+                for k in range(slurm.slurm_list_count(slurmdb_report_assoc.tres_list)):
+                    tres = <slurm.slurmdb_tres_rec_t *>slurm.slurm_list_next(tres_itr)
+                    Tres_dict = {}
+                    Tres_dict["alloc_secs"] = <int>tres.alloc_secs
+                    Tres_dict["rec_count"] = tres.rec_count
+                    Tres_dict["count"] = <int>tres.count
+                    Tres_dict["id"] = tres.id
+                    Tres_dict["name"] = slurm.stringOrNone(tres.name, '')
+                    Tres_dict["type"] = slurm.stringOrNone(tres.type, '')
+                    Assoc_dict["tres_list"].append(Tres_dict)
+
+                Cluster_dict[cluster_name] = Assoc_dict
+                slurm.slurm_list_iterator_destroy(tres_itr)
+
+            slurm.slurm_list_iterator_destroy(itr)
+
+        slurm.slurm_list_iterator_destroy(cluster_itr)
+        slurm.slurm_list_destroy(slurmdb_report_cluster_list)
+        slurmdb_report_cluster_list = NULL
+
+        return Cluster_dict
 
 #
 # Helper functions to convert numerical States

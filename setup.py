@@ -12,10 +12,7 @@ from distutils.version import LooseVersion
 
 
 CYTHON_VERSION_MIN = "0.15"
-
-# Slurm min/max supported (hex) versions
-__min_slurm_hex_version__ = "0x120800"
-__max_slurm_hex_version__ = "0x120803"
+SLURM_VERSION = "18.08"
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -110,7 +107,7 @@ def makeExtension(extName):
         [extPath],
         include_dirs = ['%s' % SLURM_INC, '.'],
         library_dirs = ['%s' % SLURM_LIB, '%s/slurm' % SLURM_LIB],
-        libraries = ['slurmdb', 'slurm'],
+        libraries = ['slurmdb', 'slurmfull'],
         runtime_library_dirs = ['%s/' % SLURM_LIB, '%s/slurm' % SLURM_LIB],
         extra_objects = [],
         extra_compile_args = [],
@@ -122,14 +119,14 @@ def read_inc_version(fname):
     """Read the supplied include file and extract slurm version number
     in the line #define SLURM_VERSION_NUMBER 0x020600 """
     hex = ''
-    f = open(fname, "r")
-    for line in f:
-        if line.find("#define SLURM_VERSION_NUMBER") == 0:
-            hex = line.split(" ")[2].strip()
-            info("Build - Detected Slurm version - %s (%s)" % (
-                hex, inc_vers2str(hex)
-            ))
-    f.close()
+
+    with open(fname, "r") as f:
+        for line in f:
+            if line.find("#define SLURM_VERSION_NUMBER") == 0:
+                hex = line.split(" ")[2].strip()
+                info("Build - Detected Slurm version - %s (%s)" % (
+                    hex, inc_vers2str(hex)
+                ))
     return hex
 
 
@@ -147,22 +144,21 @@ def check_libPath(slurm_path):
 
     slurm_path = os.path.normpath(slurm_path)
 
-    # if base dir given then check this
-    if os.path.basename(slurm_path) in ['lib','lib64']:
-        if os.path.exists("%s/libslurm.so" % slurm_path):
-            info("Build - Found Slurm shared library in %s" % slurm_path)
-            return slurm_path
-        else:
-            info("Build - Cannot locate Slurm shared library in %s" % slurm_path)
-            return ''
-
     # if base dir given then search lib64 and then lib
     for libpath in ['lib64', 'lib']:
-        slurmlibPath = "%s/%s" % (slurm_path, libpath)
+        slurmlibPath = os.path.join(slurm_path, libpath)
 
         if os.path.exists("%s/libslurm.so" % slurmlibPath):
             info("Build - Found Slurm shared library in %s" % slurmlibPath)
             return slurmlibPath
+
+    # if base dir given then check this
+    if os.path.exists("%s/libslurm.so" % slurm_path):
+        info("Build - Found Slurm shared library in %s" % slurm_path)
+        return slurm_path
+    else:
+        info("Build - Cannot locate Slurm shared library in %s" % slurm_path)
+        return ''
 
     info("Build - Could not locate Slurm shared library in %s" % slurm_path)
     return ''
@@ -264,19 +260,17 @@ def build():
         usage()
         sys.exit(-1)
 
-    # Test for supported min and max Slurm versions 
+    # Test for Slurm MAJOR.MINOR version match (ignoring .MICRO)
     try:
         SLURM_INC_VER = read_inc_version("%s/slurm/slurm.h" % SLURM_INC)
     except IOError:
         SLURM_INC_VER = read_inc_version("%s/slurm.h" % SLURM_INC)
 
-    if (int(SLURM_INC_VER,16) < int(__min_slurm_hex_version__,16)) or \
-        (int(SLURM_INC_VER,16) > int(__max_slurm_hex_version__,16)):
+    MAJOR = (int(SLURM_INC_VER, 16) >> 16) & 0xff
+    MINOR = (int(SLURM_INC_VER, 16) >>  8) & 0xff
 
-        fatal("Build - Incorrect slurm version detected, require Slurm-%s to slurm-%s" % (
-            inc_vers2str(__min_slurm_hex_version__), inc_vers2str(__max_slurm_hex_version__)
-        ))
-        sys.exit(-1)
+    if LooseVersion(str(MAJOR) + "." + str(MINOR)) != LooseVersion(SLURM_VERSION):
+        fatal("Build - Incorrect slurm version detected, requires Slurm %s" % (SLURM_VERSION))
 
     # Test for libslurm in lib64 and then lib
     SLURM_LIB = check_libPath(SLURM_LIB)
