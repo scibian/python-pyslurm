@@ -1,0 +1,38 @@
+From: =?utf-8?q?R=C3=A9mi_Palancher?= <remi-externe.palancher@edf.fr>
+Date: Mon, 27 May 2019 16:55:15 +0200
+Subject: Add missing metrics slurm statistics
+
+This patch adds DBD agent queue size and RPC queue metrics in Slurm
+statistics, similarly to sdiag utility.
+---
+ pyslurm/pyslurm.pyx | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/pyslurm/pyslurm.pyx b/pyslurm/pyslurm.pyx
+index 482b90d..0f9674a 100644
+--- a/pyslurm/pyslurm.pyx
++++ b/pyslurm/pyslurm.pyx
+@@ -4680,6 +4680,7 @@ cdef class statistics:
+             self._StatsDict[u'req_time_start'] = self._buf.req_time_start
+             self._StatsDict[u'server_thread_count'] = self._buf.server_thread_count
+             self._StatsDict[u'agent_queue_size'] = self._buf.agent_queue_size
++            self._StatsDict[u'dbd_agent_queue_size'] = self._buf.dbd_agent_queue_size
+ 
+             self._StatsDict[u'schedule_cycle_max'] = self._buf.schedule_cycle_max
+             self._StatsDict[u'schedule_cycle_last'] = self._buf.schedule_cycle_last
+@@ -4742,6 +4743,15 @@ cdef class statistics:
+                 rpc_user_stats[rpc_user][u"total_time"] = int(self._buf.rpc_user_time[i])
+             self._StatsDict[u'rpc_user_stats'] = rpc_user_stats
+ 
++            rpc_queue_stats = {}
++
++            for i in range(self._buf.rpc_queue_type_count):
++                rpc_type = self.__rpc_num2string(self._buf.rpc_queue_type_id[i])
++                rpc_queue_stats[rpc_type] = {}
++                rpc_queue_stats[rpc_type][u'id'] = self._buf.rpc_queue_type_id[i]
++                rpc_queue_stats[rpc_type][u'count'] = self._buf.rpc_queue_count[i]
++            self._StatsDict[u'rpc_queue_stats'] = rpc_queue_stats
++
+             slurm.slurm_free_stats_response_msg(self._buf)
+             self._buf = NULL
+             return self._StatsDict
