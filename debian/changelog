@@ -1,3 +1,9 @@
+python-pyslurm (18.08~git20190423-0sci9u2) scibian9; urgency=medium
+
+  * Add patch to get some missing slurm statistics
+
+ -- Rémi Palancher <remi-externe.palancher@edf.fr>  Thu, 06 Jun 2019 11:51:27 +0200
+
 python-pyslurm (18.08~git20190423-0sci9u1) scibian9; urgency=medium
 
   * New upstream version 18.08~git20190423
