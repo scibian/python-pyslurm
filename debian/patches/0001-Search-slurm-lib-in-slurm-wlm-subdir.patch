@@ -1,27 +1,24 @@
 From: =?utf-8?q?R=C3=A9mi_Palancher?= <remi-externe.palancher@edf.fr>
-Date: Tue, 23 Apr 2019 13:58:45 +0200
+Date: Fri, 3 Jan 2020 09:17:45 +0100
 Subject: Search slurm lib in slurm-wlm subdir
 
 Debian packages actually install slurm plugins shared libraries into
 slurm-wlm subdirectory. This patch makes setup.py properly looks into
 this debian specific subdirectory.
 ---
- setup.py | 4 ++--
- 1 file changed, 2 insertions(+), 2 deletions(-)
+ setup.py | 2 +-
+ 1 file changed, 1 insertions(+), 1 deletions(-)
 
 diff --git a/setup.py b/setup.py
-index 9a8fb51..be65372 100644
+index d39496a..af4aab8 100644
 --- a/setup.py
 +++ b/setup.py
-@@ -106,9 +106,9 @@ def makeExtension(extName):
-         extName,
-         [extPath],
-         include_dirs = ['%s' % SLURM_INC, '.'],
--        library_dirs = ['%s' % SLURM_LIB, '%s/slurm' % SLURM_LIB],
-+        library_dirs = ['%s' % SLURM_LIB, '%s/slurm-wlm' % SLURM_LIB],
-         libraries = ['slurmdb', 'slurmfull'],
--        runtime_library_dirs = ['%s/' % SLURM_LIB, '%s/slurm' % SLURM_LIB],
-+        runtime_library_dirs = ['%s/' % SLURM_LIB, '%s/slurm-wlm' % SLURM_LIB],
-         extra_objects = [],
-         extra_compile_args = [],
-         extra_link_args = [],
+@@ -96,7 +96,7 @@ class Pyslurm:
+     def makeExtension(self, extName):
+         """Generate an Extension object from its dotted name"""
+         extPath = extName.replace(".", os.path.sep) + ".pyx"
+-        runtime_library_dirs = [self.slurm_lib, '{0}/slurm'.format(self.slurm_lib)]
++        runtime_library_dirs = [self.slurm_lib, '{0}/slurm-wlm'.format(self.slurm_lib)]
+         return Extension(
+             extName,
+             [extPath],
