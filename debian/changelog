@@ -1,3 +1,11 @@
+python-pyslurm (19.05~git20191208-0sci9u1) scibian9; urgency=medium
+
+  * New upstream version 19.05~git20191208
+  * Update setup.py patch for new upstream release
+  * Remove build-dep on libslurmdb-dev
+
+ -- Rémi Palancher <remi-externe.palancher@edf.fr>  Fri, 03 Jan 2020 09:12:05 +0100
+
 python-pyslurm (18.08~git20190423-0sci9u2) scibian9; urgency=medium
 
   * Add patch to get some missing slurm statistics
