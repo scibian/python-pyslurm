@@ -2,6 +2,18 @@ from libc.stdint cimport int64_t, uint32_t, uint64_t, uint16_t, uint8_t, int32_t
 
 cdef extern from "slurm/slurm.h":
 
+    enum:
+        SLURM_VERSION_NUMBER
+
+    uint32_t NO_VAL
+    uint16_t NO_VAL16
+    uint32_t INFINITE
+    uint16_t SHOW_ALL
+    uint64_t MEM_PER_CPU
+    uint16_t INFINITE16
+    uint16_t SHOW_DETAIL
+    uint64_t NO_VAL64
+
     cdef enum:
         SLURM_UNEXPECTED_MSG_ERROR
         SLURM_COMMUNICATIONS_CONNECTION_ERROR

@@ -2,6 +2,10 @@ from libc.stdint cimport int64_t, uint32_t, uint64_t, uint16_t, uint8_t, int32_t
 
 cdef extern from "slurm/slurmdb.h":
 
+    enum:
+        CLUSTER_FLAG_CRAY_A
+        SLURMDB_JOB_FLAG_NOTSET
+
     cdef enum:
         SLURM_UNEXPECTED_MSG_ERROR
         SLURM_COMMUNICATIONS_CONNECTION_ERROR
@@ -2927,14 +2931,14 @@ cdef extern from "slurm/slurmdb.h":
         List accounting_list
         uint16_t classification
         time_t comm_fail_time
-        slurm_addr_t control_addr
+        #slurm_addr_t control_addr
         char* control_host
         uint32_t control_port
         uint16_t dimensions
         int* dim_size
         slurmdb_cluster_fed_t fed
         uint32_t flags
-        pthread_mutex_t lock
+        #pthread_mutex_t lock
         char* name
         char* nodes
         uint32_t plugin_id_select

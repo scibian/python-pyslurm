@@ -1,5 +1,8 @@
 cdef extern from "slurm/slurm_errno.h":
 
+    int SLURM_SUCCESS
+    int SLURM_ERROR
+
     cdef enum:
         SLURM_UNEXPECTED_MSG_ERROR
         SLURM_COMMUNICATIONS_CONNECTION_ERROR
