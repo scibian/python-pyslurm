@@ -1,3 +1,10 @@
+python-pyslurm (20.11~git20210423-0sci9u1) scibian9; urgency=medium
+
+  * New upstream version 20.11~git20210423
+  * add pxd files generation method to README.source
+
+ -- Romaric Kanyamibwa <romaric-externe.kanyamibwa@edf.fr>  Fri, 23 Apr 2021 12:41:09 +0200
+
 python-pyslurm (20.11~git20210421-0sci9u1) scibian9; urgency=medium
 
   * New upstream version 20.11~git20210421
