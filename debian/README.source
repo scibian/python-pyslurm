@@ -10,10 +10,16 @@ these steps:
 
 2/ Extract this archive
 
-3/ Create the orig tarball with the following naming scheme:
+3/ Generate pxd files by following the instructions on the sections:
+   - Build pxd files for slurm.h slurmdb.h and slurm_errno.h
+   - Patch and modify pxd files
+   - Create slurm.pxd from template slurm.j2
+of the BUILD.md file
+
+4/ Create the orig tarball with the following naming scheme:
      python-pyslurm-AA.BB~gitYYYYMMDD
    Where:
    - AA.BB is the version of the target Slurm version (ex: 18.08)
    - YYYYMMDD is the current date
 
-4/ Import the newly created orig tarball with git-buildpackage
+5/ Import the newly created orig tarball with git-buildpackage
