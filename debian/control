@@ -4,11 +4,14 @@ Maintainer: Scibian Project <packaging@scibian.org>
 Section: python
 Build-Depends:
  debhelper (>= 10),
- python-setuptools (>= 0.6),
+ python-dev,
+ python3-dev,
+ python-setuptools,
+ python3-setuptools,
  libslurm-dev,
  slurm-wlm-basic-plugins-dev,
- cython (>= 0.21),
- python-dev
+ cython,
+ cython3,
 X-Python-Version: >= 2.6
 Standards-Version: 4.5.1
 Homepage: http://www.gingergeeks.co.uk/pyslurm/
@@ -20,7 +23,23 @@ Architecture: any
 Depends:
  ${shlibs:Depends},
  ${misc:Depends},
+ ${python:Depends},
  slurm-wlm-basic-plugins
 Description: Python API for slurm
  This package provide a Python API for slurm
  that can be used to contact slurmctld
+ .
+ This package installs the library for Python 2.
+
+Package: python3-pyslurm
+Architecture: any
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends},
+ ${python3:Depends},
+ slurm-wlm-basic-plugins
+Description: Python API for slurm
+ This package provide a Python API for slurm
+ that can be used to contact slurmctld
+ .
+ This package installs the library for Python 3.
