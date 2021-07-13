@@ -1,3 +1,9 @@
+python-pyslurm (20.11~git20210423-0sci10u2) scibian10; urgency=medium
+
+  * Add python3 package
+
+ -- Rémi Palancher <remi-externe.palancher@edf.fr>  Tue, 13 Jul 2021 14:42:35 +0200
+
 python-pyslurm (20.11~git20210423-0sci10u1) scibian10; urgency=medium
 
   * Release 20.11~git20210423-0sci10u1
