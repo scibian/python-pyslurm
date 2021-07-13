@@ -2,11 +2,15 @@
 
 include /usr/share/dpkg/architecture.mk
 
-%:
-	dh $@ --with python2
+# Pyslurm setup.py needs some help to find Slurm headers on Debian systems
+export PYBUILD_BUILD_ARGS=--slurm-lib=/usr/lib/$(DEB_HOST_MULTIARCH) --slurm-inc=/usr/include
 
-override_dh_auto_build:
-	python setup.py build --force --slurm-lib=/usr/lib/$(DEB_HOST_MULTIARCH) --slurm-inc=/usr/include
+# By default, distutils install triggers the build and it fails. Force install
+# to skip the build to avoid the issue.
+export PYBUILD_INSTALL_ARGS=--skip-build
+
+%:
+	dh $@ --with python2,python3 --buildsystem=pybuild
 
 clean:
 	dh $@
