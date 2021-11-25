@@ -1,5 +1,5 @@
 %define modname pyslurm
-Name:           python3-pyslurm
+Name:           python-pyslurm
 Version:        20.02.2
 Release:        0.edf.internal
 Summary:        A Python/Cython extension module to SLURM
@@ -14,6 +14,8 @@ BuildRequires:  python3-setuptools
 Requires:       slurm
 
 %description
+
+%global _description %{expand:
 PySLURM is a Python/Cython extension module to the Simple Linux Unified
 Resource Manager (SLURM) API. SLURM is typically used on HPC clusters
 such as those listed on the TOP500 but can used on the smallest to the
@@ -21,7 +23,14 @@ largest cluster.
 
 The original and current implementation (1.X/2.x) of PySLURM was a thin
 layer for the SLURM C function calls but this is currently being hidden
-behind an object orientated interface. 
+behind an object orientated interface.}
+
+%description %_description
+
+%package -n python3-pyslurm
+Summary:        %{summary}
+
+%description -n python3-pyslurm %_description
 
 %prep
 %setup -q
@@ -32,7 +41,7 @@ CFLAGS="%{optflags}" python3 setup.py build
 %install
 python3 setup.py install --prefix=%{_prefix} --root=%{buildroot}
 
-%files
+%files -n python3-pyslurm
 %defattr(-,root,root,0755)
 %doc CONTRIBUTORS.rst COPYING.txt README.rst THANKS.rst
 %{python3_sitearch}/%{modname}
