@@ -39,7 +39,7 @@ python3 setup.py install --prefix=%{_prefix} --root=%{buildroot}
 %{python3_sitearch}/%{modname}-*-py%{python3_version}.egg-info
 
 %changelog
-* Thu Feb 25 2020 Guillaume RANQUET <guillaume-externe.ranquet@edf.fr>
+* Tue Feb 25 2020 Guillaume RANQUET <guillaume-externe.ranquet@edf.fr>
 - Update spec for rhel8/python3
 - Use pyslurm 20.02.2 from internal edf git repository while there's no official pyslurm release for slurm 20.02.2
 
