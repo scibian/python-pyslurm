@@ -7,6 +7,7 @@ License:        GPL-2.0
 Group:          Development/Libraries/Python
 Url:            http://www.gingergeeks.co.uk/pyslurm
 Source0:        %{name}-%{version}.tar.gz
+Patch0:         0001-Convert-mcs_label-bytes-string-if-defined.patch
 BuildRequires:  python3-Cython
 BuildRequires:  python3-devel
 BuildRequires:  slurm-devel
@@ -34,6 +35,7 @@ Summary:        %{summary}
 
 %prep
 %setup -q
+%patch0 -p1
 
 %build
 CFLAGS="%{optflags}" python3 setup.py build
