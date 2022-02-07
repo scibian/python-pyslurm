@@ -1,6 +1,6 @@
 %define modname pyslurm
 Name:           python-pyslurm
-Version:        20.02.2
+Version:        20.11~git20220207
 Release:        1%{?dist}.edf
 Summary:        A Python/Cython extension module to SLURM
 License:        GPL-2.0
@@ -50,6 +50,11 @@ python3 setup.py install --prefix=%{_prefix} --root=%{buildroot}
 %{python3_sitearch}/%{modname}-*-py%{python3_version}.egg-info
 
 %changelog
+* Mon Feb 7 2022 Rémi Palancher <remi-externe.palancher@edf.fr> 20.11~git20220207-1.el8.edf
+- Import new upstream version 20.11~git20220207
+- Support patch for mcs_label merged upstream
+- Add patch to support Slurm 21.08
+
 * Thu Nov 25 2021 Rémi Palancher <remi-externe.palancher@edf.fr>
 - Some rework on RPM base name to match Fedora guidelines for Python libraries
 - Add patch to convert node mcs_label from bytes to string
