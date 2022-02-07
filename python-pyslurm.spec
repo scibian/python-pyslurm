@@ -45,7 +45,7 @@ python3 setup.py install --prefix=%{_prefix} --root=%{buildroot}
 
 %files -n python3-pyslurm
 %defattr(-,root,root,0755)
-%doc CONTRIBUTORS.rst COPYING.txt README.rst THANKS.rst
+%doc COPYING.txt README.md
 %{python3_sitearch}/%{modname}
 %{python3_sitearch}/%{modname}-*-py%{python3_version}.egg-info
 
