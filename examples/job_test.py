@@ -2,7 +2,6 @@
 """
 Class to access/modify Slurm Job Information.
 """
-from __future__ import print_function
 
 import pyslurm
 
@@ -12,4 +11,4 @@ try:
     jobs = a.get()
     print(jobs)
 except ValueError as value_error:
-    print("Job list error - {0}".format(value_error.args[0]))
+    print(f"Job list error - {value_error.args[0]}")
