@@ -1,3 +1,18 @@
+python-pyslurm (20.11~git20220207-0sci10u1) scibian10; urgency=medium
+
+  * New upstream version 20.11~git20220207
+  * Add patch to support Slurm 21.08
+  * Update search slurm lib patch for new release
+  * Update slurm stats patch for new release
+  * Add patch to support python3.5
+  * Drop support of python2
+  * Add patch to setup slurm libdir sooner
+  * Disable pytests
+  * Install README.md instead of README.rst
+  * Remove clean target in d/rules
+
+ -- Rémi Palancher <remi-externe.palancher@edf.fr>  Tue, 01 Mar 2022 13:59:52 +0100
+
 python-pyslurm (20.11~git20210423-0sci10u2) scibian10; urgency=medium
 
   * Add python3 package
