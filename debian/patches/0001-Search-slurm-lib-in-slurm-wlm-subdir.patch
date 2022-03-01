@@ -10,15 +10,15 @@ this debian specific subdirectory.
  1 file changed, 1 insertions(+), 1 deletions(-)
 
 diff --git a/setup.py b/setup.py
-index d39496a..af4aab8 100644
+index 8ce8814..ca0d78b 100644
 --- a/setup.py
 +++ b/setup.py
-@@ -96,7 +96,7 @@ class Pyslurm:
-     def makeExtension(self, extName):
+@@ -117,7 +117,7 @@ class Pyslurm:
+     def make_extension(self, extension_name):
          """Generate an Extension object from its dotted name"""
-         extPath = extName.replace(".", os.path.sep) + ".pyx"
--        runtime_library_dirs = [self.slurm_lib, '{0}/slurm'.format(self.slurm_lib)]
-+        runtime_library_dirs = [self.slurm_lib, '{0}/slurm-wlm'.format(self.slurm_lib)]
+         extension_path = extension_name.replace(".", os.path.sep) + ".pyx"
+-        runtime_library_dirs = [self.slurm_lib, f"{self.slurm_lib}/slurm"]
++        runtime_library_dirs = [self.slurm_lib, f"{self.slurm_lib}/slurm-wlm"]
          return Extension(
-             extName,
-             [extPath],
+             extension_name,
+             [extension_path],
