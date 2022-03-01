@@ -12,6 +12,9 @@ export PYBUILD_INSTALL_ARGS=--skip-build
 %:
 	dh $@ --with python3 --buildsystem=pybuild
 
+override_dh_auto_test:
+	#skip
+
 clean:
 	dh $@
 	rm -rf pyslurm/pyslurm.c
