@@ -2,3 +2,4 @@
 0002-Add-missing-metrics-slurm-statistics.patch
 0003-Port-to-Slurm-21.08.patch
 0004-Backport-to-python-3.5.patch
+0005-setup-libdir-sooner.patch
