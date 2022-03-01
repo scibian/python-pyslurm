@@ -1,22 +1,42 @@
+# cython: embedsignature=True
+# cython: profile=False
+
+
 from libcpp cimport bool
+from posix.unistd cimport uid_t, pid_t
+from libc.stdint cimport int32_t, int64_t, uint8_t, uint16_t, uint32_t, uint64_t
+from cpython.version cimport PY_MAJOR_VERSION
 from posix.unistd cimport uid_t, pid_t, gid_t
 from libc.stdint cimport uint32_t, uint16_t, uint64_t
+
 
 cdef extern from "<netinet/in.h>" nogil:
     ctypedef struct sockaddr_in
     ctypedef struct sockaddr_storage
 
-cdef extern from '<time.h>' nogil:
-    ctypedef long time_t
-
 cdef extern from '<stdio.h>' nogil:
     ctypedef struct FILE
     cdef FILE *stdout
 
+
 cdef extern from '<Python.h>' nogil:
+    cdef FILE *PyFile_AsFile(object file)
     char *__FILE__
     cdef int __LINE__
     char *__FUNCTION__
+
+
+cdef extern from '<time.h>' nogil:
+    ctypedef long time_t
+
+
+cdef extern from "<netinet/in.h>" nogil:
+    ctypedef struct sockaddr_in
+
+
+cdef extern from "<pthread.h>" nogil:
+    ctypedef union pthread_mutex_t
+
 
 cdef extern from *:
     ctypedef struct slurm_job_credential
@@ -31,22 +51,23 @@ cdef extern from *:
     ctypedef struct xlist
     ctypedef struct listIterator
     ctypedef struct slurm_step_ctx_struct
+    ctypedef char const_char "const char"
     ctypedef struct slurm_ctl_conf_t
     ctypedef char* const_char_ptr "const char*"
     ctypedef char** const_char_pptr "const char**"
 
-cdef inline stringOrNone(char* value, value2):
-    if value is NULL:
-        if value2 is '':
-            return None
-        return u"%s" % value2
-    return u"%s" % value.decode("UTF-8", "replace")
 
-cdef inline int32orNone(uint32_t value):
-    if value is NO_VAL:
-        return None
-    else:
-        return value
+{% include 'jinja2/slurm_errno.h.pxd' %}
+
+{% include 'jinja2/slurm.h.pxd' %}
+
+{% include 'jinja2/slurmdb.h.pxd' %}
+
+
+#
+# PySlurm helper functions
+#
+
 
 cdef inline listOrNone(char* value, sep_char):
     if value is NULL:
@@ -60,23 +81,28 @@ cdef inline listOrNone(char* value, sep_char):
 
     return value.decode("UTF_8", "replace").split(sep_char)
 
+
+cdef inline stringOrNone(char* value, value2):
+    if value is NULL:
+        if value2 is '':
+            return None
+        return "%s" % value2
+    return "%s" % value.decode("UTF-8", "replace")
+
+
 cdef inline int16orNone(uint16_t value):
     if value is NO_VAL16:
         return None
     else:
         return value
 
-cdef inline int16orUnlimited(uint16_t value, return_type):
-    if value is INFINITE16:
-        if return_type is "int":
-            return None
-        else:
-            return u"UNLIMITED"
+
+cdef inline int32orNone(uint32_t value):
+    if value is NO_VAL:
+        return None
     else:
-        if return_type is "int":
-            return value
-        else:
-            return str(value)
+        return value
+
 
 cdef inline int64orNone(uint64_t value):
     if value is NO_VAL64:
@@ -84,13 +110,27 @@ cdef inline int64orNone(uint64_t value):
     else:
         return value
 
+
+cdef inline int16orUnlimited(uint16_t value, return_type):
+    if value is INFINITE16:
+        if return_type is "int":
+            return None
+        else:
+            return "UNLIMITED"
+    else:
+        if return_type is "int":
+            return value
+        else:
+            return str(value)
+
+
+cdef inline boolToString(int value):
+    if value == 0:
+        return 'False'
+    return 'True'
+
+
 cdef extern char **environ
-
-{% include 'slurm.h.pxd' %}
-
-{% include 'slurmdb.h.pxd' %}
-
-{% include 'slurm_errno.h.pxd' %}
 
 cdef extern char *slurm_preempt_mode_string (uint16_t preempt_mode)
 cdef extern void slurm_make_time_str (time_t *time, char *string, int size)
