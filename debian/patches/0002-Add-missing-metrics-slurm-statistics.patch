@@ -9,20 +9,20 @@ statistics, similarly to sdiag utility.
  1 file changed, 10 insertions(+)
 
 diff --git a/pyslurm/pyslurm.pyx b/pyslurm/pyslurm.pyx
-index 482b90d..0f9674a 100644
+index 4097112..3679b48 100644
 --- a/pyslurm/pyslurm.pyx
 +++ b/pyslurm/pyslurm.pyx
-@@ -4680,6 +4680,7 @@ cdef class statistics:
-             self._StatsDict[u'req_time_start'] = self._buf.req_time_start
-             self._StatsDict[u'server_thread_count'] = self._buf.server_thread_count
-             self._StatsDict[u'agent_queue_size'] = self._buf.agent_queue_size
+@@ -4466,6 +4466,7 @@ cdef class statistics:
+             self._StatsDict['req_time_start'] = self._buf.req_time_start
+             self._StatsDict['server_thread_count'] = self._buf.server_thread_count
+             self._StatsDict['agent_queue_size'] = self._buf.agent_queue_size
 +            self._StatsDict[u'dbd_agent_queue_size'] = self._buf.dbd_agent_queue_size
  
-             self._StatsDict[u'schedule_cycle_max'] = self._buf.schedule_cycle_max
-             self._StatsDict[u'schedule_cycle_last'] = self._buf.schedule_cycle_last
-@@ -4742,6 +4743,15 @@ cdef class statistics:
-                 rpc_user_stats[rpc_user][u"total_time"] = int(self._buf.rpc_user_time[i])
-             self._StatsDict[u'rpc_user_stats'] = rpc_user_stats
+             self._StatsDict['schedule_cycle_max'] = self._buf.schedule_cycle_max
+             self._StatsDict['schedule_cycle_last'] = self._buf.schedule_cycle_last
+@@ -4532,6 +4533,15 @@ cdef class statistics:
+                 rpc_user_stats[rpc_user]["total_time"] = int(self._buf.rpc_user_time[i])
+             self._StatsDict['rpc_user_stats'] = rpc_user_stats
  
 +            rpc_queue_stats = {}
 +
