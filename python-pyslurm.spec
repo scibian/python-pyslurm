@@ -1,6 +1,6 @@
 %define modname pyslurm
 Name:           python-pyslurm
-Version:        20.11~git20220207
+Version:        22.5.1
 Release:        1%{?dist}.edf
 Summary:        A Python/Cython extension module to SLURM
 License:        GPL-2.0
@@ -50,6 +50,11 @@ python3 setup.py install --prefix=%{_prefix} --root=%{buildroot}
 %{python3_sitearch}/%{modname}-*-py%{python3_version}.egg-info
 
 %changelog
+* Wed Mar 15 2023 Rémi Palancher <remi-externe.palancher@edf.fr> 22.5.1-1.el8.edf
+- New upstream release 22.5.1
+- Add patch to backport to Cython 0.28.1
+- Remove patch to support Slurm 21.08 merged upstream
+
 * Mon Feb 7 2022 Rémi Palancher <remi-externe.palancher@edf.fr> 20.11~git20220207-1.el8.edf
 - Import new upstream version 20.11~git20220207
 - Support patch for mcs_label merged upstream
