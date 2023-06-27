@@ -1,0 +1,97 @@
+Description: Support Python 3.5
+Author: Kwame Amedodji <kwame-externe.amedodji@edf.fr>
+Forwarded: no
+Last-Update: 2023-06-27
+
+---
+ setup.py | 58 +++++++++++++++++++++++++++++-----------------------------
+ 1 file changed, 29 insertions(+), 29 deletions(-)
+
+--- a/setup.py
++++ b/setup.py
+@@ -75,8 +75,8 @@ def info(log_string):
+     logger.info(log_string)
+ 
+ 
+-if sys.version_info[:2] < (3, 6):
+-    raise RuntimeError("Python 3.6 or higher is required to run PySlurm.")
++if sys.version_info[:2] < (3, 5):
++    raise RuntimeError("Python 3.5 or higher is required to run PySlurm.")
+ 
+ 
+ def usage():
+@@ -114,7 +114,7 @@ def inc_vers2str(hex_inc_version):
+     a = int(hex_inc_version, 16)
+     b = (a >> 16 & 0xFF, a >> 8 & 0xFF, a & 0xFF)
+     # Only really need the major release
+-    return f"{b[0]:02d}.{b[1]:02d}"
++    return "{0:02d}.{1:02d}".format(*b)
+ 
+ 
+ def read_inc_version(fname):
+@@ -128,7 +128,7 @@ def read_inc_version(fname):
+         for line in f:
+             if line.find("#define SLURM_VERSION_NUMBER") == 0:
+                 hex_version = line.split(" ")[2].strip()
+-                info("Detected Slurm version - "f"{inc_vers2str(hex_version)}")
++                info("Detected Slurm version - %s" % inc_vers2str(hex_version))
+ 
+     if not hex_version:
+         raise RuntimeError("Unable to detect Slurm version")
+@@ -161,10 +161,10 @@ def cleanup_build():
+ 
+     for file in files:
+         if file.is_file():
+-            info(f"Removing: {file}")
++            info("Removing: %s" % file)
+             file.unlink()
+         else:
+-            raise RuntimeError(f"{file} is not a file !")
++            raise RuntimeError("%s is not a file !" % file)
+ 
+     info("cleanup done")
+ 
+@@ -225,18 +225,18 @@ def slurm_sanity_checks():
+     """
+     Check if Slurm headers and Lib exist.
+     """
+-    if os.path.exists(f"{config.slurm_lib}/{SLURM_SHARED_LIB}"):
+-        info(f"Found Slurm shared library in {config.slurm_lib}")
++    if os.path.exists("%s/%s" % (config.slurm_lib,SLURM_SHARED_LIB)):
++        info("Found Slurm shared library in %s" % config.slurm_lib)
+     else:
+-        raise RuntimeError(f"Cannot locate Slurm shared library in {config.slurm_lib}")
++        raise RuntimeError("Cannot locate Slurm shared library in %s" % config.slurm_lib)
+     
+-    if os.path.exists(f"{config.slurm_inc_full}/slurm.h"):
+-        info(f"Found Slurm header in {config.slurm_inc_full}")
++    if os.path.exists("%s/slurm.h" % config.slurm_inc_full):
++        info("Found Slurm header in %s" % config.slurm_inc_full)
+     else:
+-        raise RuntimeError(f"Cannot locate the Slurm include in {config.slurm_inc_full}")
++        raise RuntimeError("Cannot locate the Slurm include in %s" % config.slurm_inc_full)
+ 
+     # Test for Slurm MAJOR.MINOR version match (ignoring .MICRO)
+-    slurm_inc_ver = read_inc_version(f"{config.slurm_inc_full}/slurm_version.h")
++    slurm_inc_ver = read_inc_version("%s/slurm_version.h" % config.slurm_inc_full)
+ 
+     major = (int(slurm_inc_ver, 16) >> 16) & 0xFF
+     minor = (int(slurm_inc_ver, 16) >> 8) & 0xFF
+@@ -244,7 +244,7 @@ def slurm_sanity_checks():
+ 
+     if LooseVersion(detected_version) != LooseVersion(SLURM_RELEASE):
+         raise RuntimeError(
+-            f"Incorrect slurm version detected, requires Slurm {SLURM_RELEASE}"
++            "Incorrect slurm version detected, requires Slurm %s" % SLURM_RELEASE
+         )
+ 
+ 
+@@ -262,7 +262,7 @@ def cythongen():
+         raise RuntimeError(msg) from e
+     else:    
+         if LooseVersion(cython_version) < LooseVersion(CYTHON_VERSION_MIN):
+-            msg = f"Please use Cython version >= {CYTHON_VERSION_MIN}"
++            msg = "Please use Cython version >= %s" % CYTHON_VERSION_MIN
+             raise RuntimeError(msg)
+ 
+ 
