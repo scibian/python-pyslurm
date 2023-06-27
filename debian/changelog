@@ -1,3 +1,17 @@
+python-pyslurm (22.5.1-0sci9u1) scibian9; urgency=medium
+
+  * New upstream version 22.5.1
+  * add slurm_lib path in rules to fix install issue
+  * remove patch Search-slurm-lib-in-slurm-wlm-subdir
+  * rename Add-missing-metrics-slurm-statistics
+  * remove patch setup-libdir-sooner
+  * update patch Backport-to-python-3.5
+  * add patch 0003-backport-cython-0.28.1
+  * drop patch Port-to-Slurm-21.08
+  * Add/Remove/Update patches
+
+ -- Kwame Amedodji <kwame-externe.amedodji@edf.fr>  Tue, 27 Jun 2023 05:29:56 +0200
+
 python-pyslurm (20.11~git20220207-0sci9u1) scibian9; urgency=medium
 
   * New upstream version 20.11~git20220207
