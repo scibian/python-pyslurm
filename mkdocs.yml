@@ -1,0 +1,76 @@
+site_dir: "site"
+site_name: "pyslurm"
+site_url: "https://pyslurm.github.io"
+repo_url: "https://github.com/PySlurm/pyslurm"
+repo_name: "PySlurm/pyslurm"
+copyright: Copyright &copy; 2023 PySlurm Developers
+
+nav:
+  - Home:
+    - Home: index.md
+    - Changelog: changelog.md
+  - ...
+
+theme:
+  name: "material"
+  logo: logo.png
+  features:
+    - navigation.sections
+    - navigation.indexes
+    - navigation.tabs
+    # - navigation.tabs.sticky
+    - navigation.top
+    - content.code.copy
+    - toc.follow
+  palette: 
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      accent: purple
+      primary: indigo
+      toggle:
+        icon: material/brightness-7 
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      accent: lime
+      primary: black
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: Roboto
+    code: Roboto Mono
+
+plugins:
+  - search
+  - awesome-pages
+  - autorefs
+  - mike
+  - mkdocstrings:
+      handlers:
+        python:
+          import:
+            - https://docs.python.org/3/objects.inv
+          options:
+            filters: ["!^_"]
+            docstring_style: google
+            show_signature: true
+            show_root_heading: true
+
+markdown_extensions:
+  - admonition
+  - pymdownx.snippets:
+      check_paths: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.details
+
+extra:
+  version:
+    provider: mike
+extra_css:
+  - stylesheets/extra.css

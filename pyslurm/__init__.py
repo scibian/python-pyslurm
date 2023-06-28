@@ -1,10 +1,6 @@
-"""
-PySlurm: Python bindings for the Slurm C API
-============================================
+"""pyslurm package
 
-PySlurm is a Cython wrapper around Slurm C API functions.
-
-More information about Slurm can be found at https://slurm.schedmd.com.
+pyslurm is a wrapper around the Slurm C-API.
 """
 from __future__ import absolute_import
 
@@ -13,8 +9,32 @@ import sys
 
 sys.setdlopenflags(sys.getdlopenflags() | ctypes.RTLD_GLOBAL)
 
+# Initialize slurm api
+from pyslurm.api import slurm_init, slurm_fini
+slurm_init()
+
 from .pyslurm import *
 from .__version__ import __version__
+
+from pyslurm import db
+from pyslurm import utils
+from pyslurm import constants
+
+from pyslurm.core.job import (
+    Job,
+    Jobs,
+    JobStep,
+    JobSteps,
+    JobSubmitDescription,
+)
+from pyslurm.core.node import Node, Nodes
+from pyslurm.core.partition import Partition, Partitions
+from pyslurm.core import error
+from pyslurm.core.error import (
+    PyslurmError,
+    RPCError,
+)
+from pyslurm.core import slurmctld
 
 
 def version():

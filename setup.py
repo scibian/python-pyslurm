@@ -17,7 +17,7 @@ logging.basicConfig(format="%(levelname)s: %(message)s", level=logging.DEBUG)
 # Keep in sync with pyproject.toml
 CYTHON_VERSION_MIN = "0.29.30"
 
-SLURM_RELEASE = "22.5"
+SLURM_RELEASE = "23.2"
 PYSLURM_PATCH_RELEASE = "1"
 SLURM_SHARED_LIB = "libslurm.so"
 CURRENT_DIR = pathlib.Path(__file__).parent
@@ -33,7 +33,6 @@ metadata = dict(
     url="https://github.com/PySlurm/pyslurm",
     platforms=["Linux"],
     keywords=["HPC", "Batch Scheduler", "Resource Manager", "Slurm", "Cython"],
-    packages=["pyslurm"],
     classifiers=[
         "Development Status :: 5 - Production/Stable",
         "Environment :: Console",
@@ -157,7 +156,7 @@ def cleanup_build():
         info("Removing build/")
         remove_tree("build", verbose=1)
 
-    files = find_files_with_extension("pyslurm", {".c", ".pyc"})
+    files = find_files_with_extension("pyslurm", {".c", ".pyc", ".so"})
 
     for file in files:
         if file.is_file():
