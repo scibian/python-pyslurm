@@ -1,3 +1,9 @@
+python-pyslurm (23.2.1-0sci9u2) scibian9; urgency=medium
+
+  * Rebuild for slurm 23.02.6
+
+ -- Nilce BOUSSAMBA <nilce-externe.boussamba@edf.fr>  Fri, 20 Oct 2023 18:34:37 +0200
+
 python-pyslurm (23.2.1-0sci9u1) scibian9; urgency=medium
 
   * New upstream version 23.2.1
