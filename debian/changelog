@@ -1,3 +1,9 @@
+python-pyslurm (23.2.1-0sci9u1) scibian9; urgency=medium
+
+  * New upstream version 23.2.1
+
+ -- Kwame Amedodji <kwame-externe.amedodji@edf.fr>  Wed, 28 Jun 2023 22:16:58 +0200
+
 python-pyslurm (22.5.1-0sci9u1) scibian9; urgency=medium
 
   * New upstream version 22.5.1
