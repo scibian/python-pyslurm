@@ -55,20 +55,25 @@ from pyslurm.utils cimport cstr
 from pyslurm.utils cimport ctime
 from pyslurm.utils.ctime cimport time_t
 from pyslurm.utils.uint cimport *
+from pyslurm.xcollections cimport MultiClusterMap
 
 
-cdef class Nodes(list):
-    """A collection of [pyslurm.Node][] objects.
+cdef class Nodes(MultiClusterMap):
+    """A [`Multi Cluster`][pyslurm.xcollections.MultiClusterMap] collection of [pyslurm.Node][] objects.
 
     Args:
-        nodes (Union[list, dict, str], optional=None):
+        nodes (Union[list[str], dict[str, Node], str], optional=None):
             Nodes to initialize this collection with.
 
     Attributes:
         free_memory (int):
             Amount of free memory in this node collection. (in Mebibytes)
+            Note that this means actual free memory as returned by the `free`
+            command
         real_memory (int):
             Amount of real memory in this node collection. (in Mebibytes)
+        idle_memory (int):
+            Amount of idle memory in this node collection. (in Mebibytes)
         allocated_memory (int):
             Amount of alloc Memory in this node collection. (in Mebibytes)
         total_cpus (int):
@@ -83,9 +88,6 @@ cdef class Nodes(list):
             Total amount of Watts consumed in this node collection.
         avg_watts (int):
             Amount of average watts consumed in this node collection.
-
-    Raises:
-        MemoryError: If malloc fails to allocate memory.
     """
     cdef:
         node_info_msg_t *info
@@ -102,7 +104,7 @@ cdef class Node:
 
     Other Parameters:
         configured_gres (dict):
-            Configured GRES for the node 
+            Configured GRES for the node
         address (str):
             Address of the node
         hostname (str):
@@ -162,10 +164,13 @@ cdef class Node:
             Real Memory in Mebibytes configured for this node.
         free_memory (int):
             Free Memory in Mebibytes on the node.
+            Note that this means actual free memory as returned by the `free`
+            command
+        idle_memory (int):
+            Idle Memory in Mebibytes on the node.
         memory_reserved_for_system (int):
-            Raw Memory in Mebibytes reserved for the System not usable by
-            Jobs.
-        temporary_disk_space_per_node (int):
+            Memory in Mebibytes reserved for the System not usable by Jobs.
+        temporary_disk (int):
             Amount of temporary disk space this node has, in Mebibytes.
         weight (int):
             Weight of the node in scheduling.
@@ -197,6 +202,8 @@ cdef class Node:
             Time this node was last busy, as unix timestamp.
         reason_time (int):
             Time the reason was set for the node, as unix timestamp.
+        allocated_tres (dict):
+            Currently allocated Trackable Resources
         allocated_cpus (int):
             Number of allocated CPUs on the node.
         idle_cpus (int):
@@ -212,9 +219,10 @@ cdef class Node:
         external_sensors (dict):
             External Sensor info for the Node.
             The dict returned contains the following information:
-                * joules_total (int)
-                * current_watts (int)
-                * temperature (int)
+
+            * `joules_total` (int)
+            * `current_watts` (int)
+            * `temperature` (int)
         state (str):
             State the node is currently in.
         next_state (str):
@@ -223,9 +231,6 @@ cdef class Node:
             CPU Load on the Node.
         slurmd_port (int):
             Port the slurmd is listening on the node.
-
-    Raises:
-        MemoryError: If malloc fails to allocate memory.
     """
     cdef:
         node_info_t *info
@@ -240,4 +245,4 @@ cdef class Node:
 
     @staticmethod
     cdef Node from_ptr(node_info_t *in_ptr)
-    
+

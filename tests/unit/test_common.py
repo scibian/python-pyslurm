@@ -55,12 +55,12 @@ from pyslurm.utils.helpers import (
     nodelist_from_range_str,
     nodelist_to_range_str,
     instance_to_dict,
-    collection_to_dict,
-    collection_to_dict_global,
-    group_collection_by_cluster,
-    _sum_prop,
+    gres_from_tres_dict,
 )
 from pyslurm.utils import cstr
+from pyslurm.xcollections import (
+    sum_property,
+)
 
 
 class TestStrings:
@@ -85,7 +85,7 @@ class TestStrings:
         n = Node()
         input_as_list = ["test1", "test2", "test3", "test4"]
         input_as_str = ",".join(input_as_list)
-        
+
         n.available_features = input_as_list
         assert n.available_features == input_as_list
 
@@ -102,9 +102,10 @@ class TestStrings:
         assert n.available_features == []
 
     def test_str_to_dict(self):
-        expected_dict = {"key1": "value1", "key2": "value2"}
-        input_str = "key1=value1,key2=value2"
-        assert cstr.to_dict(input_str) == expected_dict 
+        expected_dict = {"cpu": 2, "mem": "11G",
+                         "gres/gpu": 1, "gres/gpu:nvidia-a100": 1}
+        input_str = "cpu=2,mem=11G,gres/gpu=1,gres/gpu:nvidia-a100=1"
+        assert cstr.to_dict(input_str) == expected_dict
         assert cstr.to_dict("") == {}
 
     def test_dict_to_str(self):
@@ -122,12 +123,12 @@ class TestStrings:
         input_dict = {"key1=": "value1", "key2": "value2"}
         expected_str = "key1=value1,key2=value2"
         with pytest.raises(ValueError,
-                           match=r"Key or Value cannot contain either*"): 
+                           match=r"Key or Value cannot contain either*"):
             assert cstr.dict_to_str(input_dict) == expected_str
 
         expected_str = "key1=value1,key2=value2"
         assert cstr.dict_to_str(expected_str) == expected_str
-            
+
         assert cstr.dict_to_str({}) == None
         assert cstr.dict_to_str("") == None
 
@@ -151,7 +152,19 @@ class TestStrings:
         assert cstr.from_gres_dict("tesla:3,a100:5", "gpu") == expected_str
 
     def test_str_to_gres_dict(self):
-        assert True
+        input_str = "gpu:nvidia-a100:1(IDX:0,1)"
+        expected = {"gpu:nvidia-a100":{"count": 1, "indexes": "0,1"}}
+        assert cstr.to_gres_dict(input_str) == expected
+
+        input_str = "gpu:nvidia-a100:1"
+        expected = {"gpu:nvidia-a100": 1}
+        assert cstr.to_gres_dict(input_str) == expected
+
+    def test_gres_from_tres_dict(self):
+        input_dict = {"cpu": 10, "mem": "5G",
+                      "gres/gpu": 5, "gres/gpu:nvidia": 100}
+        expected = {"gpu": 5, "gpu:nvidia": 100}
+        assert gres_from_tres_dict(input_dict) == expected
 
 
 class TestUint:
@@ -176,16 +189,16 @@ class TestUint:
         assert func_get(val, zero_is_noval=False) == 0
 
         with pytest.raises(TypeError,
-                           match="an integer is required"): 
+                           match="an integer is required"):
             val = func_set("UNLIMITED")
 
         with pytest.raises(OverflowError,
-                           match=r"can't convert negative value to*"): 
+                           match=r"can't convert negative value to*"):
             val = func_set(-1)
 
         with pytest.raises(OverflowError,
                            match=r"value too large to convert to*|"
-                                  "Python int too large*"): 
+                                  "Python int too large*"):
             val = func_set(2**typ)
 
     def test_u8(self):
@@ -213,7 +226,7 @@ class TestUint:
         assert part.is_root_only
         assert not part.is_default
         assert not part.allow_root_jobs
-        
+
         part.is_default = False
         part.is_hidden = False
         assert not part.is_hidden
@@ -255,13 +268,13 @@ class TestTime:
         mins_str = "01:00:00"
 
         assert timestr_to_mins(mins_str) == mins
-        assert timestr_to_mins("UNLIMITED") == 2**32-1 
+        assert timestr_to_mins("UNLIMITED") == 2**32-1
         assert timestr_to_mins(None) == 2**32-2
 
         assert mins_to_timestr(mins) == mins_str
         assert mins_to_timestr(2**32-1) == "UNLIMITED"
         assert mins_to_timestr(2**32-2) == None
-        assert mins_to_timestr(0) == None 
+        assert mins_to_timestr(0) == None
 
         with pytest.raises(ValueError,
                 match="Invalid Time Specification: invalid_val."):
@@ -272,13 +285,13 @@ class TestTime:
         secs_str = "01:00:00"
 
         assert timestr_to_secs(secs_str) == secs
-        assert timestr_to_secs("UNLIMITED") == 2**32-1 
+        assert timestr_to_secs("UNLIMITED") == 2**32-1
         assert timestr_to_secs(None) == 2**32-2
 
         assert secs_to_timestr(secs) == secs_str
         assert secs_to_timestr(2**32-1) == "UNLIMITED"
         assert secs_to_timestr(2**32-2) == None
-        assert secs_to_timestr(0) == None 
+        assert secs_to_timestr(0) == None
 
         with pytest.raises(ValueError,
                 match="Invalid Time Specification: invalid_val."):
@@ -310,7 +323,7 @@ class TestMiscUtil:
         assert name == "root"
 
         lookup = {0: "root"}
-        name = uid_to_name(0, lookup=lookup) 
+        name = uid_to_name(0, lookup=lookup)
         assert name == "root"
 
         assert user_to_uid("root") == 0
@@ -328,7 +341,7 @@ class TestMiscUtil:
         assert name == "root"
 
         lookup = {0: "root"}
-        name = gid_to_name(0, lookup=lookup) 
+        name = gid_to_name(0, lookup=lookup)
         assert name == "root"
 
         assert group_to_gid("root") == 0
@@ -347,11 +360,11 @@ class TestMiscUtil:
 
     def test_humanize(self):
         val = humanize(1024)
-        assert val == "1.0G" 
+        assert val == "1.0G"
 
         val = humanize(2**20)
         assert val == "1.0T"
-        
+
         val = humanize(800)
         assert val == "800.0M"
 
@@ -369,19 +382,19 @@ class TestMiscUtil:
         val = dehumanize(1024)
         assert val == 1024
 
-        val = dehumanize("2M") 
+        val = dehumanize("2M")
         assert val == 2
 
-        val = dehumanize("10G") 
+        val = dehumanize("10G")
         assert val == 10240
 
-        val = dehumanize("9.6G") 
+        val = dehumanize("9.6G")
         assert val == round(1024*9.6)
 
-        val = dehumanize("10T") 
+        val = dehumanize("10T")
         assert val == 10*(2**20)
 
-        val = dehumanize("10T", target="G") 
+        val = dehumanize("10T", target="G")
         assert val == 10*(2**10)
 
         with pytest.raises(ValueError,
@@ -391,7 +404,7 @@ class TestMiscUtil:
         with pytest.raises(ValueError,
                 match="could not convert string to float: 'invalid_val'"):
            val = dehumanize("invalid_valM")
-        
+
     def test_signal_to_num(self):
        sig = signal_to_num("SIGKILL")
        assert sig == 9
@@ -414,75 +427,3 @@ class TestMiscUtil:
         assert "node[001,007-009]" == nodelist_to_range_str(nodelist)
         assert "node[001,007-009]" == nodelist_to_range_str(nodelist_str)
 
-    def test_summarize_property(self):
-        class TestObject:
-            @property
-            def memory(self):
-                return 10240
-
-            @property
-            def cpus(self):
-                return None
-
-        object_dict = {i: TestObject() for i in range(10)}
-
-        expected = 10240 * 10
-        assert _sum_prop(object_dict, TestObject.memory) == expected
-
-        expected = 0
-        assert _sum_prop(object_dict, TestObject.cpus) == expected
-
-    def test_collection_to_dict(self):
-        class TestObject:
-
-            def __init__(self, _id, _grp_id, cluster):
-                self._id = _id
-                self._grp_id = _grp_id
-                self.cluster = cluster
-
-            @property
-            def id(self):
-                return self._id
-
-            @property
-            def group_id(self):
-                return self._grp_id
-
-            def as_dict(self):
-                return instance_to_dict(self)
-
-        class TestCollection(list):
-
-            def __init__(self, data):
-                super().__init__()
-                self.extend(data)
-
-        OFFSET = 100
-        RANGE = 10
-
-        data = [TestObject(x, x+OFFSET, "TestCluster") for x in range(RANGE)]
-        collection = TestCollection(data)
-
-        coldict = collection_to_dict(collection, identifier=TestObject.id)
-        coldict = coldict.get("TestCluster", {})
-
-        assert len(coldict) == RANGE
-        for i in range(RANGE):
-            assert i in coldict
-            assert isinstance(coldict[i], TestObject)
-
-        coldict = collection_to_dict(collection, identifier=TestObject.id,
-                                     group_id=TestObject.group_id)
-        coldict = coldict.get("TestCluster", {})
-
-        assert len(coldict) == RANGE
-        for i in range(RANGE):
-            assert i+OFFSET in coldict
-            assert i in coldict[i+OFFSET]
-
-        coldict = collection_to_dict(collection, identifier=TestObject.id,
-                                    recursive=True)
-        coldict = coldict.get("TestCluster", {})
-
-        for item in coldict.values():
-            assert isinstance(item, dict)
