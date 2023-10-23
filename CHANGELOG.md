@@ -7,18 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased on the [23.2.x](https://github.com/PySlurm/pyslurm/tree/23.2.x) branch
 
+- New Classes to interact with Database Associations (WIP)
+    - `pyslurm.db.Association`
+    - `pyslurm.db.Associations`
+- New Classes to interact with Database QoS (WIP)
+    - `pyslurm.db.QualityOfService`
+    - `pyslurm.db.QualitiesOfService`
+- Add `truncate_time` option to `pyslurm.db.JobFilter`, which is the same as -T /
+  --truncate from sacct.
+- Add new Attributes to `pyslurm.db.Jobs` that help gathering statistics for a
+  collection of Jobs more convenient.
+- Fix `allocated_gres` attribute in the `pyslurm.Node` Class returning nothing.
+- Add new `idle_memory` and `allocated_tres` attributes to `pyslurm.Node` class
+- Fix Node State being displayed as `ALLOCATED` when it should actually be
+  `MIXED`.
+
+## [23.2.2](https://github.com/PySlurm/pyslurm/releases/tag/v23.2.2) - 2023-07-18
+
 ### Added
 
 - Ability to modify Database Jobs
 - New classes to interact with the Partition API
-    - [pyslurm.Partition](https://pyslurm.github.io/23.2/reference/partition/#pyslurm.Partition)
-    - [pyslurm.Partitions](https://pyslurm.github.io/23.2/reference/partition/#pyslurm.Partitions)
+    - [pyslurm.Partition][]
+    - [pyslurm.Partitions][]
 - New attributes for a Database Job:
-    - extra
-    - failed_node
-- Now possible to initialize a pyslurm.db.Jobs collection with existing job
-  ids or pyslurm.db.Job objects
-- Added `as_dict` function to all Collections
+    - `extra`
+    - `failed_node`
+- Added a new Base Class [MultiClusterMap][pyslurm.xcollections.MultiClusterMap] that some Collections inherit from.
+- Added `to_json` function to all Collections
 
 ### Fixed
 
@@ -29,8 +45,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- All Collections (like [pyslurm.Jobs](https://pyslurm.github.io/23.2/reference/job/#pyslurm.Jobs)) inherit from `list` now instead of `dict`
-- `JobSearchFilter` has been renamed to `JobFilter`
+- Improved Docs
+- Renamed `JobSearchFilter` to [pyslurm.db.JobFilter][]
+- Renamed `as_dict` function of some classes to `to_dict`
 
 ## [23.2.1](https://github.com/PySlurm/pyslurm/releases/tag/v23.2.1) - 2023-05-18
 

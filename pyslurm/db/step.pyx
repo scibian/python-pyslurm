@@ -27,6 +27,7 @@ from pyslurm.core.error import RPCError
 from typing import Union
 from pyslurm.utils.uint import *
 from pyslurm.utils.ctime import _raw_time
+from pyslurm import xcollections
 from pyslurm.utils.helpers import (
     gid_to_name,
     uid_to_name,
@@ -35,6 +36,16 @@ from pyslurm.utils.helpers import (
     humanize_step_id,
 )
 from pyslurm.core.job.util import cpu_freq_int_to_str
+
+
+cdef class JobSteps(dict):
+
+    def __repr__(self):
+        data = super().__repr__()
+        return f'pyslurm.db.{self.__class__.__name__}({data})'
+
+    def to_dict(self):
+        return xcollections.dict_recursive(self)
 
 
 cdef class JobStep:
@@ -57,10 +68,18 @@ cdef class JobStep:
         wrap.stats = JobStatistics.from_step(wrap)
         return wrap
 
-    def as_dict(self):
+    def to_dict(self):
+        """Convert Database JobStep information to a dictionary.
+
+        Returns:
+            (dict): Database JobStep information as dict
+        """
         cdef dict out = instance_to_dict(self)
-        out["stats"] = self.stats.as_dict()
+        out["stats"] = self.stats.to_dict()
         return out
+
+    def __repr__(self):
+        return f'pyslurm.db.{self.__class__.__name__}({self.id})'
 
     @property
     def num_nodes(self):
