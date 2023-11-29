@@ -1,6 +1,6 @@
 %define modname pyslurm
 Name:           python-pyslurm
-Version:        22.5.1
+Version:        23.2.2
 Release:        1%{?dist}.edf
 Summary:        A Python/Cython extension module to SLURM
 License:        GPL-2.0
@@ -12,7 +12,7 @@ BuildRequires:  python3-Cython
 BuildRequires:  python3-devel
 BuildRequires:  slurm-devel
 BuildRequires:  python3-setuptools
-Requires:       slurm
+Requires:       slurm >= 23, slurm < 24
 
 %description
 
@@ -50,6 +50,9 @@ python3 setup.py install --prefix=%{_prefix} --root=%{buildroot}
 %{python3_sitearch}/%{modname}-*-py%{python3_version}.egg-info
 
 %changelog
+* Wed Nov 29 2023 Mathieu Chouquet-Stringer <mathieu-externe.chouquet-stringer@edf.fr> 23.2.2-1.el8.edf
+- New upstream release 23.2.2
+
 * Wed Mar 15 2023 Rémi Palancher <remi-externe.palancher@edf.fr> 22.5.1-1.el8.edf
 - New upstream release 22.5.1
 - Add patch to backport to Cython 0.28.1
