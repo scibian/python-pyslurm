@@ -1,0 +1,9 @@
+diff --git a/pyslurm/utils/__init__.pxd b/pyslurm/utils/__init__.pxd
+index 7a22bfa..8d72e77 100644
+--- a/pyslurm/utils/__init__.pxd
++++ b/pyslurm/utils/__init__.pxd
+@@ -1,2 +1,4 @@
++#
++#
+ # cython: c_string_type=unicode, c_string_encoding=default
+ # cython: language_level=3

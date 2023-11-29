@@ -8,6 +8,7 @@ Group:          Development/Libraries/Python
 Url:            http://www.gingergeeks.co.uk/pyslurm
 Source0:        %{name}-%{version}.tar.gz
 Patch0:         0001-backport-cython-0.28.1.patch
+Patch1:         0002-cython-encoding_bug.patch
 BuildRequires:  python3-Cython
 BuildRequires:  python3-devel
 BuildRequires:  slurm-devel >= 23, slurm-devel < 24
@@ -36,6 +37,7 @@ Summary:        %{summary}
 %prep
 %setup -q
 %patch0 -p1
+%patch1 -p1
 
 %build
 CFLAGS="%{optflags}" python3 setup.py build
