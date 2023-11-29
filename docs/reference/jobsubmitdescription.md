@@ -1,0 +1,5 @@
+---
+title: JobSubmitDescription
+---
+
+::: pyslurm.JobSubmitDescription
