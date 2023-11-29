@@ -10,7 +10,7 @@ Source0:        %{name}-%{version}.tar.gz
 Patch0:         0001-backport-cython-0.28.1.patch
 BuildRequires:  python3-Cython
 BuildRequires:  python3-devel
-BuildRequires:  slurm-devel
+BuildRequires:  slurm-devel >= 23, slurm-devel < 24
 BuildRequires:  python3-setuptools
 Requires:       slurm >= 23, slurm < 24
 
