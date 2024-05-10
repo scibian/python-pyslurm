@@ -1,7 +1,7 @@
 %define modname pyslurm
 Name:           python-pyslurm
 Version:        23.11.1
-Release:        2%{?dist}.edf
+Release:        3%{?dist}.edf
 Summary:        A Python/Cython extension module to SLURM
 License:        GPL-2.0
 Group:          Development/Libraries/Python
@@ -52,6 +52,9 @@ python3 setup.py install --prefix=%{_prefix} --root=%{buildroot}
 %{python3_sitearch}/%{modname}-*-py%{python3_version}.egg-info
 
 %changelog
+* Fri May 10 2024 Kwame Amedodji <kwame-externe.amedodji@edf.fr> 23.11.1-3.el8.edf
+- Fix correctly cython patch 23.11.1 version
+
 * Fri May 10 2024 Kwame Amedodji <kwame-externe.amedodji@edf.fr> 23.11.1-2.el8.edf
 - Fix cython patch for version 23.11.1
 
