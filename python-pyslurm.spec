@@ -11,9 +11,9 @@ Patch0:         0001-backport-cython-0.28.1.patch
 Patch1:         0002-cython-encoding_bug.patch
 BuildRequires:  python3-Cython
 BuildRequires:  python3-devel
-BuildRequires:  slurm-devel >= 23, slurm-devel < 24
+BuildRequires:  slurm-devel >= 23.11.1
 BuildRequires:  python3-setuptools
-Requires:       slurm >= 23, slurm < 24
+Requires:       slurm >= 23.11.1
 
 %description
 
@@ -52,6 +52,9 @@ python3 setup.py install --prefix=%{_prefix} --root=%{buildroot}
 %{python3_sitearch}/%{modname}-*-py%{python3_version}.egg-info
 
 %changelog
+* Fri May 10 2024 Kwame Amedodji <kwame-externe.amedodji@edf.fr> 23.11.1-1.el8.edf
+- bump slurm-devel to version 23.11.1
+
 * Wed Nov 29 2023 Mathieu Chouquet-Stringer <mathieu-externe.chouquet-stringer@edf.fr> 23.2.2-1.el8.edf
 - New upstream release 23.2.2
 
