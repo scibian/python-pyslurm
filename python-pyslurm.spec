@@ -1,6 +1,6 @@
 %define modname pyslurm
 Name:           python-pyslurm
-Version:        23.2.2
+Version:        23.11.1
 Release:        1%{?dist}.edf
 Summary:        A Python/Cython extension module to SLURM
 License:        GPL-2.0
