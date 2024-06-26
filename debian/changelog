@@ -1,3 +1,12 @@
+python-pyslurm (24.05.0-0sci9u1) scibian9; urgency=medium
+
+  * New upstream version 24.05.0
+  * Rebase patches for 24.05
+  * Add python3-packaging to build-depends
+  * Add patch to drop cython requirement
+
+ -- Thomas HAMEL <thomas-t.hamel@edf.fr>  Wed, 26 Jun 2024 14:39:34 +0200
+
 python-pyslurm (23.2.2-0sci9u1) scibian9; urgency=medium
 
   * New upstream version 23.2.2
