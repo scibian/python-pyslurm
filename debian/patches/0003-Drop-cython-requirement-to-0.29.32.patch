@@ -1,0 +1,36 @@
+From: Thomas HAMEL <thomas-t.hamel@edf.fr>
+Date: Wed, 26 Jun 2024 14:35:49 +0200
+Subject: Drop cython requirement to 0.29.32
+
+This is the version already backported to stretch.
+---
+ pyproject.toml | 2 +-
+ setup.py       | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/pyproject.toml b/pyproject.toml
+index 7d73cf8..2d21f46 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -3,7 +3,7 @@
+ requires = [
+     "setuptools>=59.2.0",
+     "wheel>=0.37.0",
+-    "Cython>=0.29.36",
++    "Cython>=0.29.32",
+     "packaging>=21.3"
+ ]
+ 
+diff --git a/setup.py b/setup.py
+index c6bc2ca..eb483ca 100644
+--- a/setup.py
++++ b/setup.py
+@@ -14,7 +14,7 @@ except ImportError:
+     from setuptools._vendor.packaging.version import Version
+ 
+ 
+-CYTHON_VERSION_MIN = "0.29.36" # Keep in sync with pyproject.toml
++CYTHON_VERSION_MIN = "0.29.32" # Keep in sync with pyproject.toml
+ SLURM_LIB = "libslurm"
+ TOPDIR = Path(__file__).parent
+ PYTHON_MIN_REQUIRED = (3, 5)
