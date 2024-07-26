@@ -1,8 +1,16 @@
 [build-system]
 # Minimum requirements
 requires = [
-    "setuptools==59.2.0",
-    "wheel==0.37.0",
-    "Cython>=0.29.30,<3.0",
+    "setuptools>=59.2.0",
+    "wheel>=0.37.0",
+    "Cython>=0.29.36",
+    "packaging>=21.3"
 ]
 
+
+[tool.codespell]
+skip = '.git,*.pdf,*.svg,*.lock,*.css'
+check-hidden = true
+# ignore-regex = ''
+# ignore some variables etc
+ignore-words-list = 'mmaped,splitted'

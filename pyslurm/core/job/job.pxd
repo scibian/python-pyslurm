@@ -1,5 +1,5 @@
 #########################################################################
-# job.pyx - interface to retrieve slurm job informations
+# job.pyx - interface to retrieve slurm job information
 #########################################################################
 # Copyright (C) 2023 Toni Harzendorf <toni.harzendorf@gmail.com>
 #
@@ -47,7 +47,7 @@ from pyslurm.slurm cimport (
     job_info_msg_t,
     slurm_job_info_t,
     slurm_job_state_string,
-    slurm_job_reason_string,
+    slurm_job_state_reason_string,
     slurm_job_share_string,
     slurm_job_batch_script,
     slurm_get_job_stdin,
@@ -347,13 +347,15 @@ cdef class Job:
         gres_per_node (dict):
             Generic Resources (e.g. GPU) this Job is using per Node.
         profile_types (list):
-            Types for which detailed accounting data is collected. 
+            Types for which detailed accounting data is collected.
         gres_binding (str):
             Binding Enforcement of a Generic Resource (e.g. GPU).
+        gres_tasks_per_sharing (str):
+            Task Sharing of a Generic Resource (e.g. GPU).
         kill_on_invalid_dependency (bool):
             Whether the Job should be killed on an invalid dependency.
         spreads_over_nodes (bool):
-            Whether the Job should be spreaded over as many nodes as possible.
+            Whether the Job should be spread over as many nodes as possible.
         power_options (list):
             Options set for Power Management.
         is_cronjob (bool):
