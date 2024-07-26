@@ -1,3 +1,40 @@
+From 19d23650f0a248afc4e2fc48565e5aaff59e207b Mon Sep 17 00:00:00 2001
+From: Thomas HAMEL <thomas-t.hamel@edf.fr>
+Date: Fri, 26 Jul 2024 15:04:16 +0200
+Subject: [PATCH 2/3] cython encoding_bug
+
+There's an upstream bug in cython which will result in an incorrect
+encoding detection if the c_string_encoding keyword appears in the first
+two lines of a file: cython/cython#2632
+
+So the "simple" fix is to add 2 extra lines before the magic headers of
+the only files which is incorrectly detected.
+---
+ pyslurm/slurm/__init__.pxd | 2 ++
+ pyslurm/slurm/__init__.pyx | 2 ++
+ pyslurm/utils/__init__.pxd | 2 ++
+ 3 files changed, 6 insertions(+)
+
+diff --git a/pyslurm/slurm/__init__.pxd b/pyslurm/slurm/__init__.pxd
+index 8251028..b158905 100644
+--- a/pyslurm/slurm/__init__.pxd
++++ b/pyslurm/slurm/__init__.pxd
+@@ -1,3 +1,5 @@
++#
++#
+ # cython: c_string_type=unicode, c_string_encoding=default
+ # cython: language_level=3
+ 
+diff --git a/pyslurm/slurm/__init__.pyx b/pyslurm/slurm/__init__.pyx
+index ddc12d3..2bda48d 100644
+--- a/pyslurm/slurm/__init__.pyx
++++ b/pyslurm/slurm/__init__.pyx
+@@ -1,3 +1,5 @@
++#
++#
+ # cython: c_string_type=unicode, c_string_encoding=default
+ # cython: language_level=3
+ 
 diff --git a/pyslurm/utils/__init__.pxd b/pyslurm/utils/__init__.pxd
 index 7a22bfa..8d72e77 100644
 --- a/pyslurm/utils/__init__.pxd
@@ -7,3 +44,6 @@ index 7a22bfa..8d72e77 100644
 +#
  # cython: c_string_type=unicode, c_string_encoding=default
  # cython: language_level=3
+-- 
+2.30.2
+
