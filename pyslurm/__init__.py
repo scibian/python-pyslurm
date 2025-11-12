@@ -2,19 +2,12 @@
 
 pyslurm is a wrapper around the Slurm C-API.
 """
-from __future__ import absolute_import
-
-import ctypes
+import os
 import sys
 
-sys.setdlopenflags(sys.getdlopenflags() | ctypes.RTLD_GLOBAL)
+sys.setdlopenflags(sys.getdlopenflags() | os.RTLD_GLOBAL | os.RTLD_DEEPBIND)
 
-# Initialize slurm api
-from pyslurm.api import slurm_init, slurm_fini
-slurm_init()
-
-from .pyslurm import *
-from .__version__ import __version__
+from .version import __version__
 
 from pyslurm import db
 from pyslurm import utils
@@ -29,6 +22,12 @@ from pyslurm.core.job import (
 )
 from pyslurm.core.node import Node, Nodes
 from pyslurm.core.partition import Partition, Partitions
+from pyslurm.core.reservation import (
+    Reservation,
+    Reservations,
+    ReservationFlags,
+    ReservationReoccurrence,
+)
 from pyslurm.core import error
 from pyslurm.core.error import (
     PyslurmError,
@@ -36,6 +35,9 @@ from pyslurm.core.error import (
 )
 from pyslurm.core import slurmctld
 
+# The old API in deprecated.pyx
+from pyslurm.deprecated import *
 
-def version():
-    return __version__
+# Initialize slurm api
+from pyslurm.api import slurm_init, slurm_fini
+slurm_init()

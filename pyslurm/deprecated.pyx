@@ -131,6 +131,15 @@ cdef inline listOrNone(char* value, sep_char):
 
     return value.decode("UTF_8", "replace").split(sep_char)
 
+cdef inline listOfStrings(char **value):
+    l = []
+    i = 0
+    if value != NULL:
+        while value[i] != NULL:
+            l.append(stringOrNone(value[i], ''))
+            i += 1
+
+    return(tuple(l))
 
 cdef inline stringOrNone(char* value, value2):
     if value is NULL:
@@ -239,9 +248,6 @@ cdef inline IS_JOB_REQUEUED(slurm.slurm_job_info_t _X):
 cdef inline IS_JOB_FED_REQUEUED(slurm.slurm_job_info_t _X):
     return (_X.job_state & JOB_REQUEUE_FED)
 
-cdef inline IS_JOB_UPDATE_DB(slurm.slurm_job_info_t _X):
-    return (_X.job_state & JOB_UPDATE_DB)
-
 cdef inline IS_JOB_REVOKED(slurm.slurm_job_info_t _X):
     return (_X.job_state & JOB_REVOKED)
 
@@ -344,7 +350,7 @@ def get_controllers():
         uint32_t length = 0
 
     if errCode != 0:
-        apiError = slurm.slurm_get_errno()
+        apiError = slurm_get_errno()
         raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     control_machs = []
@@ -455,884 +461,6 @@ def get_private_data_list(data):
         preview = rest
     return result
 
-cdef class config:
-    """Slurm Config Information."""
-
-    cdef:
-        slurm.slurm_conf_t *slurm_ctl_conf_ptr
-        slurm.slurm_conf_t *__Config_ptr
-        slurm.time_t Time
-        slurm.time_t __lastUpdate
-        dict __ConfigDict
-
-    def __cinit__(self):
-        self.__Config_ptr = NULL
-        self.__lastUpdate = 0
-        self.__ConfigDict = {}
-        self.__load()
-
-    def __dealloc__(self):
-        self.__free()
-
-    def lastUpdate(self):
-        """Get the time (epoch seconds) the retrieved data was updated.
-
-        Returns:
-            (int): Epoch seconds
-        """
-        return self._lastUpdate
-
-    def ids(self):
-        """Return the config IDs from retrieved data.
-
-        Returns:
-            (dict): Dictionary of config key IDs
-        """
-        return self.__ConfigDict.keys()
-
-    def find_id(self, char *keyID=''):
-        """Retrieve config ID data.
-
-        Args:
-            keyID (str): Config key string to search
-
-        Returns:
-            (dict): Dictionary of values for given config key
-        """
-        return self.__ConfigDict.get(keyID, {})
-
-    cdef void __free(self):
-        """Free memory allocated by slurm_load_ctl_conf."""
-        if self.__Config_ptr is not NULL:
-            slurm.slurm_free_ctl_conf(self.__Config_ptr)
-            self.__Config_ptr = NULL
-            self.__ConfigDict = {}
-            self.__lastUpdate = 0
-
-    def display_all(self):
-        """Print slurm control configuration information."""
-        slurm.slurm_print_ctl_conf(slurm.stdout, self.__Config_ptr)
-
-    cdef int __load(self) except? -1:
-        """Load the slurm control configuration information.
-
-        Returns:
-            int: slurm error code
-        """
-        cdef:
-            slurm.slurm_conf_t *slurm_ctl_conf_ptr = NULL
-            slurm.time_t Time = <slurm.time_t>NULL
-            int apiError = 0
-            int errCode = slurm.slurm_load_ctl_conf(Time, &slurm_ctl_conf_ptr)
-
-        if errCode != 0:
-            apiError = slurm.slurm_get_errno()
-            raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
-
-        self.__Config_ptr = slurm_ctl_conf_ptr
-        return errCode
-
-    def key_pairs(self):
-        """Return a dict of the slurm control data as key pairs.
-
-        Returns:
-            (dict): Dictionary of slurm key-pair values
-        """
-        cdef:
-            void *ret_list = NULL
-            slurm.List config_list = NULL
-            slurm.list_itr_t* iters = NULL
-
-            config_key_pair_t *keyPairs
-
-            int listNum, i
-            dict keyDict = {}
-
-        if self.__Config_ptr is not NULL:
-
-            config_list = <slurm.List>slurm.slurm_ctl_conf_2_key_pairs(self.__Config_ptr)
-
-            listNum = slurm.slurm_list_count(config_list)
-            iters = slurm.slurm_list_iterator_create(config_list)
-
-            for i in range(listNum):
-
-                keyPairs = <config_key_pair_t *>slurm.slurm_list_next(iters)
-                name = keyPairs.name
-
-                if keyPairs.value is not NULL:
-                    value = keyPairs.value
-                else:
-                    value = None
-
-                keyDict[name] = value
-
-            slurm.slurm_list_iterator_destroy(iters)
-
-        return keyDict
-
-    def get(self):
-        """Return the slurm control configuration information.
-
-        Returns:
-            (dict): Configuration data
-        """
-        self.__load()
-        self.__get()
-
-        return self.__ConfigDict
-
-    cpdef dict __get(self):
-        """Get the slurm control configuration information."""
-        cdef:
-            void *ret_list = NULL
-            slurm.List config_list = NULL
-            slurm.list_itr_t* iters = NULL
-            char tmp_str[128]
-
-            config_key_pair_t *keyPairs
-            int i = 0
-            int listNum
-            dict Ctl_dict = {}
-            dict key_pairs = {}
-
-        if self.__Config_ptr is not NULL:
-
-            self.__lastUpdate = self.__Config_ptr.last_update
-
-            Ctl_dict['accounting_storage_tres'] = stringOrNone(self.__Config_ptr.accounting_storage_tres, '')
-            Ctl_dict['accounting_storage_enforce'] = self.__Config_ptr.accounting_storage_enforce
-            Ctl_dict['accounting_storage_backup_host'] = stringOrNone(self.__Config_ptr.accounting_storage_backup_host, '')
-            Ctl_dict['accounting_storage_ext_host'] = stringOrNone(self.__Config_ptr.accounting_storage_ext_host, '')
-            Ctl_dict['accounting_storage_host'] = stringOrNone(self.__Config_ptr.accounting_storage_host, '')
-            Ctl_dict['accounting_storage_pass'] = stringOrNone(self.__Config_ptr.accounting_storage_pass, '')
-            Ctl_dict['accounting_storage_port'] = self.__Config_ptr.accounting_storage_port
-            Ctl_dict['accounting_storage_type'] = stringOrNone(self.__Config_ptr.accounting_storage_type, '')
-            Ctl_dict['accounting_storage_user'] = stringOrNone(self.__Config_ptr.accounting_storage_user, '')
-            Ctl_dict['acct_gather_energy_type'] = stringOrNone(self.__Config_ptr.acct_gather_energy_type, '')
-            Ctl_dict['acct_gather_profile_type'] = stringOrNone(self.__Config_ptr.acct_gather_profile_type, '')
-            Ctl_dict['acct_gather_interconnect_type'] = stringOrNone(self.__Config_ptr.acct_gather_interconnect_type, '')
-            Ctl_dict['acct_gather_filesystem_type'] = stringOrNone(self.__Config_ptr.acct_gather_filesystem_type, '')
-            Ctl_dict['acct_gather_node_freq'] = self.__Config_ptr.acct_gather_node_freq
-            Ctl_dict['auth_alt_types'] = stringOrNone(self.__Config_ptr.authalttypes, '')
-            Ctl_dict['authinfo'] = stringOrNone(self.__Config_ptr.authinfo, '')
-            Ctl_dict['authtype'] = stringOrNone(self.__Config_ptr.authtype, '')
-            Ctl_dict['batch_start_timeout'] = self.__Config_ptr.batch_start_timeout
-            Ctl_dict['bb_type'] = stringOrNone(self.__Config_ptr.bb_type, '')
-            Ctl_dict['bcast_exclude'] = stringOrNone(self.__Config_ptr.bcast_exclude, '')
-            Ctl_dict['bcast_parameters'] = stringOrNone(self.__Config_ptr.bcast_parameters, '')
-            Ctl_dict['boot_time'] = self.__Config_ptr.boot_time
-            Ctl_dict['cli_filter_plugins'] = stringOrNone(self.__Config_ptr.cli_filter_plugins, '')
-            Ctl_dict['cluster_name'] = stringOrNone(self.__Config_ptr.cluster_name, '')
-            Ctl_dict['comm_params'] = stringOrNone(self.__Config_ptr.comm_params, '')
-            Ctl_dict['complete_wait'] = self.__Config_ptr.complete_wait
-            Ctl_dict['conf_flags'] = self.__Config_ptr.conf_flags
-            Ctl_dict['cpu_freq_def'] = int32orNone(self.__Config_ptr.cpu_freq_def)
-            Ctl_dict['cpu_freq_govs'] = self.__Config_ptr.cpu_freq_govs
-            Ctl_dict['cred_type'] = stringOrNone(self.__Config_ptr.cred_type, '')
-            Ctl_dict['debug_flags'] = self.__Config_ptr.debug_flags
-            Ctl_dict['def_mem_per_cpu'] = self.__Config_ptr.def_mem_per_cpu
-            Ctl_dict['dependency_params'] = stringOrNone(self.__Config_ptr.dependency_params, '')
-            Ctl_dict['eio_timeout'] = self.__Config_ptr.eio_timeout
-            Ctl_dict['enforce_part_limits'] = bool(self.__Config_ptr.enforce_part_limits)
-            Ctl_dict['epilog'] = stringOrNone(self.__Config_ptr.epilog, '')
-            Ctl_dict['epilog_msg_time'] = self.__Config_ptr.epilog_msg_time
-            Ctl_dict['epilog_slurmctld'] = stringOrNone(self.__Config_ptr.epilog_slurmctld, '')
-            Ctl_dict['federation_parameters'] = stringOrNone(self.__Config_ptr.fed_params, '')
-            Ctl_dict['first_job_id'] = self.__Config_ptr.first_job_id
-            Ctl_dict['fs_dampening_factor'] = self.__Config_ptr.fs_dampening_factor
-            Ctl_dict['get_env_timeout'] = self.__Config_ptr.get_env_timeout
-            Ctl_dict['gpu_freq_def'] = stringOrNone(self.__Config_ptr.gpu_freq_def, '')
-            Ctl_dict['gres_plugins'] = listOrNone(self.__Config_ptr.gres_plugins, ',')
-            Ctl_dict['group_time'] = self.__Config_ptr.group_time
-            Ctl_dict['group_update_force'] = self.__Config_ptr.group_force
-            Ctl_dict['hash_val'] = self.__Config_ptr.hash_val
-            Ctl_dict['health_check_interval'] = self.__Config_ptr.health_check_interval
-            Ctl_dict['health_check_node_state'] = self.__Config_ptr.health_check_node_state
-            Ctl_dict['health_check_program'] = stringOrNone(self.__Config_ptr.health_check_program, '')
-            Ctl_dict['inactive_limit'] = self.__Config_ptr.inactive_limit
-            Ctl_dict['job_acct_gather_freq'] = stringOrNone(self.__Config_ptr.job_acct_gather_freq, '')
-            Ctl_dict['job_acct_gather_type'] = stringOrNone(self.__Config_ptr.job_acct_gather_type, '')
-            Ctl_dict['job_acct_gather_params'] = stringOrNone(self.__Config_ptr.job_acct_gather_params, '')
-            Ctl_dict['job_comp_host'] = stringOrNone(self.__Config_ptr.job_comp_host, '')
-            Ctl_dict['job_comp_loc'] = stringOrNone(self.__Config_ptr.job_comp_loc, '')
-            Ctl_dict['job_comp_params'] = stringOrNone(self.__Config_ptr.job_comp_params, '')
-            Ctl_dict['job_comp_pass'] = stringOrNone(self.__Config_ptr.job_comp_pass, '')
-            Ctl_dict['job_comp_port'] = self.__Config_ptr.job_comp_port
-            Ctl_dict['job_comp_type'] = stringOrNone(self.__Config_ptr.job_comp_type, '')
-            Ctl_dict['job_comp_user'] = stringOrNone(self.__Config_ptr.job_comp_user, '')
-            Ctl_dict['job_container_plugin'] = stringOrNone(self.__Config_ptr.job_container_plugin, '')
-            # TODO: wrap with job_defaults_str()
-            #Ctl_dict['job_defaults_list'] = stringOrNone(self.__Config_ptr.job_defaults_list, ',')
-
-            Ctl_dict['job_file_append'] = bool(self.__Config_ptr.job_file_append)
-            Ctl_dict['job_requeue'] = bool(self.__Config_ptr.job_requeue)
-            Ctl_dict['job_submit_plugins'] = stringOrNone(self.__Config_ptr.job_submit_plugins, '')
-            Ctl_dict['keep_alive_time'] = int16orNone(self.__Config_ptr.keepalive_time)
-            Ctl_dict['kill_on_bad_exit'] = bool(self.__Config_ptr.kill_on_bad_exit)
-            Ctl_dict['kill_wait'] = self.__Config_ptr.kill_wait
-            Ctl_dict['licenses'] = __get_licenses(self.__Config_ptr.licenses)
-            Ctl_dict['log_fmt'] = self.__Config_ptr.log_fmt
-            Ctl_dict['mail_domain'] = stringOrNone(self.__Config_ptr.mail_domain, '')
-            Ctl_dict['mail_prog'] = stringOrNone(self.__Config_ptr.mail_prog, '')
-            Ctl_dict['max_array_sz'] = self.__Config_ptr.max_array_sz
-            Ctl_dict['max_dbd_msgs'] = self.__Config_ptr.max_dbd_msgs
-            Ctl_dict['max_job_cnt'] = self.__Config_ptr.max_job_cnt
-            Ctl_dict['max_job_id'] = self.__Config_ptr.max_job_id
-            Ctl_dict['max_mem_per_cpu'] = self.__Config_ptr.max_mem_per_cpu
-            Ctl_dict['max_step_cnt'] = self.__Config_ptr.max_step_cnt
-            Ctl_dict['max_tasks_per_node'] = self.__Config_ptr.max_tasks_per_node
-            Ctl_dict['min_job_age'] = self.__Config_ptr.min_job_age
-            Ctl_dict['mpi_default'] = stringOrNone(self.__Config_ptr.mpi_default, '')
-            Ctl_dict['mpi_params'] = stringOrNone(self.__Config_ptr.mpi_params, '')
-            Ctl_dict['msg_timeout'] = self.__Config_ptr.msg_timeout
-            Ctl_dict['next_job_id'] = self.__Config_ptr.next_job_id
-            Ctl_dict['node_prefix'] = stringOrNone(self.__Config_ptr.node_prefix, '')
-            Ctl_dict['over_time_limit'] = int16orNone(self.__Config_ptr.over_time_limit)
-            Ctl_dict['plugindir'] = stringOrNone(self.__Config_ptr.plugindir, '')
-            Ctl_dict['plugstack'] = stringOrNone(self.__Config_ptr.plugstack, '')
-            Ctl_dict['prep_params'] = stringOrNone(self.__Config_ptr.prep_params, '')
-            Ctl_dict['prep_plugins'] = stringOrNone(self.__Config_ptr.prep_plugins, '')
-
-            config_get_preempt_mode = get_preempt_mode(self.__Config_ptr.preempt_mode)
-            Ctl_dict['preempt_mode'] = stringOrNone(config_get_preempt_mode, '')
-
-            Ctl_dict['preempt_type'] = stringOrNone(self.__Config_ptr.preempt_type, '')
-
-            if self.__Config_ptr.preempt_exempt_time == slurm.INFINITE:
-                Ctl_dict['preempt_exempt_time'] = "NONE"
-            else:
-                secs2time_str(self.__Config_ptr.preempt_exempt_time)
-                Ctl_dict['preempt_exempt_time'] = stringOrNone(tmp_str, '')
-
-            Ctl_dict['priority_decay_hl'] = self.__Config_ptr.priority_decay_hl
-            Ctl_dict['priority_calc_period'] = self.__Config_ptr.priority_calc_period
-            Ctl_dict['priority_favor_small'] = self.__Config_ptr.priority_favor_small
-            Ctl_dict['priority_flags'] = self.__Config_ptr.priority_flags
-            Ctl_dict['priority_max_age'] = self.__Config_ptr.priority_max_age
-            Ctl_dict['priority_params'] = stringOrNone(self.__Config_ptr.priority_params, '')
-            Ctl_dict['priority_site_factor_params'] = stringOrNone(self.__Config_ptr.site_factor_params, '')
-            Ctl_dict['priority_site_factor_plugin'] = stringOrNone(self.__Config_ptr.site_factor_plugin, '')
-            Ctl_dict['priority_reset_period'] = self.__Config_ptr.priority_reset_period
-            Ctl_dict['priority_type'] = stringOrNone(self.__Config_ptr.priority_type, '')
-            Ctl_dict['priority_weight_age'] = self.__Config_ptr.priority_weight_age
-            Ctl_dict['priority_weight_assoc'] = self.__Config_ptr.priority_weight_assoc
-            Ctl_dict['priority_weight_fs'] = self.__Config_ptr.priority_weight_fs
-            Ctl_dict['priority_weight_js'] = self.__Config_ptr.priority_weight_js
-            Ctl_dict['priority_weight_part'] = self.__Config_ptr.priority_weight_part
-            Ctl_dict['priority_weight_qos'] = self.__Config_ptr.priority_weight_qos
-            Ctl_dict['proctrack_type'] = stringOrNone(self.__Config_ptr.proctrack_type, '')
-            Ctl_dict['private_data'] = self.__Config_ptr.private_data
-            Ctl_dict['private_data_list'] = get_private_data_list(self.__Config_ptr.private_data)
-            Ctl_dict['priority_weight_tres'] = stringOrNone(self.__Config_ptr.priority_weight_tres, '')
-            Ctl_dict['prolog'] = stringOrNone(self.__Config_ptr.prolog, '')
-            Ctl_dict['prolog_epilog_timeout'] = int16orNone(self.__Config_ptr.prolog_epilog_timeout)
-            Ctl_dict['prolog_slurmctld'] = stringOrNone(self.__Config_ptr.prolog_slurmctld, '')
-            Ctl_dict['propagate_prio_process'] = self.__Config_ptr.propagate_prio_process
-            Ctl_dict['prolog_flags'] = self.__Config_ptr.prolog_flags
-            Ctl_dict['propagate_rlimits'] = stringOrNone(self.__Config_ptr.propagate_rlimits, '')
-            Ctl_dict['propagate_rlimits_except'] = stringOrNone(self.__Config_ptr.propagate_rlimits_except, '')
-            Ctl_dict['reboot_program'] = stringOrNone(self.__Config_ptr.reboot_program, '')
-            Ctl_dict['reconfig_flags'] = self.__Config_ptr.reconfig_flags
-            Ctl_dict['resume_fail_program'] = stringOrNone(self.__Config_ptr.resume_fail_program, '')
-            Ctl_dict['requeue_exit'] = stringOrNone(self.__Config_ptr.requeue_exit, '')
-            Ctl_dict['requeue_exit_hold'] = stringOrNone(self.__Config_ptr.requeue_exit_hold, '')
-            Ctl_dict['resume_fail_program'] = stringOrNone(self.__Config_ptr.resume_fail_program, '')
-            Ctl_dict['resume_program'] = stringOrNone(self.__Config_ptr.resume_program, '')
-            Ctl_dict['resume_rate'] = self.__Config_ptr.resume_rate
-            Ctl_dict['resume_timeout'] = self.__Config_ptr.resume_timeout
-            Ctl_dict['resv_epilog'] = stringOrNone(self.__Config_ptr.resv_epilog, '')
-            Ctl_dict['resv_over_run'] = self.__Config_ptr.resv_over_run
-            Ctl_dict['resv_prolog'] = stringOrNone(self.__Config_ptr.resv_prolog, '')
-            Ctl_dict['ret2service'] = self.__Config_ptr.ret2service
-            Ctl_dict['sched_logfile'] = stringOrNone(self.__Config_ptr.sched_logfile, '')
-            Ctl_dict['sched_log_level'] = self.__Config_ptr.sched_log_level
-            Ctl_dict['sched_params'] = stringOrNone(self.__Config_ptr.sched_params, '')
-            Ctl_dict['sched_time_slice'] = self.__Config_ptr.sched_time_slice
-            Ctl_dict['schedtype'] = stringOrNone(self.__Config_ptr.schedtype, '')
-            Ctl_dict['scron_params'] = stringOrNone(self.__Config_ptr.scron_params, '')
-            Ctl_dict['select_type'] = stringOrNone(self.__Config_ptr.select_type, '')
-            Ctl_dict['select_type_param'] = self.__Config_ptr.select_type_param
-            Ctl_dict['slurm_conf'] = stringOrNone(self.__Config_ptr.slurm_conf, '')
-            Ctl_dict['slurm_user_id'] = self.__Config_ptr.slurm_user_id
-            Ctl_dict['slurm_user_name'] = stringOrNone(self.__Config_ptr.slurm_user_name, '')
-            Ctl_dict['slurmd_user_id'] = self.__Config_ptr.slurmd_user_id
-            Ctl_dict['slurmd_user_name'] = stringOrNone(self.__Config_ptr.slurmd_user_name, '')
-            Ctl_dict['slurmctld_addr'] = stringOrNone(self.__Config_ptr.slurmctld_addr, '')
-            Ctl_dict['slurmctld_debug'] = self.__Config_ptr.slurmctld_debug
-            # TODO: slurmctld_host
-            Ctl_dict['slurmctld_logfile'] = stringOrNone(self.__Config_ptr.slurmctld_logfile, '')
-            Ctl_dict['slurmctld_pidfile'] = stringOrNone(self.__Config_ptr.slurmctld_pidfile, '')
-            Ctl_dict['slurmctld_port'] = self.__Config_ptr.slurmctld_port
-            Ctl_dict['slurmctld_port_count'] = self.__Config_ptr.slurmctld_port_count
-            Ctl_dict['slurmctld_primary_off_prog'] = stringOrNone(self.__Config_ptr.slurmctld_primary_off_prog, '')
-            Ctl_dict['slurmctld_primary_on_prog'] = stringOrNone(self.__Config_ptr.slurmctld_primary_on_prog, '')
-            Ctl_dict['slurmctld_syslog_debug'] = self.__Config_ptr.slurmctld_syslog_debug
-            Ctl_dict['slurmctld_timeout'] = self.__Config_ptr.slurmctld_timeout
-            Ctl_dict['slurmd_debug'] = self.__Config_ptr.slurmd_debug
-            Ctl_dict['slurmd_logfile'] = stringOrNone(self.__Config_ptr.slurmd_logfile, '')
-            Ctl_dict['slurmd_parameters'] = stringOrNone(self.__Config_ptr.slurmd_params, '')
-            Ctl_dict['slurmd_pidfile'] = stringOrNone(self.__Config_ptr.slurmd_pidfile, '')
-            Ctl_dict['slurmd_port'] = self.__Config_ptr.slurmd_port
-            Ctl_dict['slurmd_spooldir'] = stringOrNone(self.__Config_ptr.slurmd_spooldir, '')
-            Ctl_dict['slurmd_syslog_debug'] = self.__Config_ptr.slurmd_syslog_debug
-            Ctl_dict['slurmd_timeout'] = self.__Config_ptr.slurmd_timeout
-            Ctl_dict['srun_epilog'] = stringOrNone(self.__Config_ptr.srun_epilog, '')
-
-            a = [0,0]
-            if self.__Config_ptr.srun_port_range != NULL:
-                a[0] = self.__Config_ptr.srun_port_range[0]
-                a[1] = self.__Config_ptr.srun_port_range[1]
-            Ctl_dict['srun_port_range'] = tuple(a)
-
-            Ctl_dict['srun_prolog'] = stringOrNone(self.__Config_ptr.srun_prolog, '')
-            Ctl_dict['state_save_location'] = stringOrNone(self.__Config_ptr.state_save_location, '')
-            Ctl_dict['suspend_exc_nodes'] = listOrNone(self.__Config_ptr.suspend_exc_nodes, ',')
-            Ctl_dict['suspend_exc_parts'] = listOrNone(self.__Config_ptr.suspend_exc_parts, ',')
-            Ctl_dict['suspend_program'] = stringOrNone(self.__Config_ptr.suspend_program, '')
-            Ctl_dict['suspend_rate'] = self.__Config_ptr.suspend_rate
-            Ctl_dict['suspend_time'] = self.__Config_ptr.suspend_time
-            Ctl_dict['suspend_timeout'] = self.__Config_ptr.suspend_timeout
-            Ctl_dict['switch_type'] = stringOrNone(self.__Config_ptr.switch_type, '')
-            Ctl_dict['switch_param'] = stringOrNone(self.__Config_ptr.switch_param, '')
-            Ctl_dict['task_epilog'] = stringOrNone(self.__Config_ptr.task_epilog, '')
-            Ctl_dict['task_plugin'] = stringOrNone(self.__Config_ptr.task_plugin, '')
-            Ctl_dict['task_plugin_param'] = self.__Config_ptr.task_plugin_param
-            Ctl_dict['task_prolog'] = stringOrNone(self.__Config_ptr.task_prolog, '')
-            Ctl_dict['tcp_timeout'] = self.__Config_ptr.tcp_timeout
-            Ctl_dict['tmp_fs'] = stringOrNone(self.__Config_ptr.tmp_fs, '')
-            Ctl_dict['topology_param'] = stringOrNone(self.__Config_ptr.topology_param, '')
-            Ctl_dict['topology_plugin'] = stringOrNone(self.__Config_ptr.topology_plugin, '')
-            Ctl_dict['tree_width'] = self.__Config_ptr.tree_width
-            Ctl_dict['unkillable_program'] = stringOrNone(self.__Config_ptr.unkillable_program, '')
-            Ctl_dict['unkillable_timeout'] = self.__Config_ptr.unkillable_timeout
-            Ctl_dict['version'] = stringOrNone(self.__Config_ptr.version, '')
-            Ctl_dict['vsize_factor'] = self.__Config_ptr.vsize_factor
-            Ctl_dict['wait_time'] = self.__Config_ptr.wait_time
-            Ctl_dict['x11_params'] = stringOrNone(self.__Config_ptr.x11_params, '')
-
-            #
-            # Get key_pairs from Opaque data structure
-            #
-
-#            config_list = <slurm.List>self.__Config_ptr.select_conf_key_pairs
-#            if config_list is not NULL:
-#                listNum = slurm.slurm_list_count(config_list)
-#                iters* = slurm.slurm_list_iterator_create(config_list)
-#                for i in range(listNum):
-#                    keyPairs = <config_key_pair_t *>slurm.slurm_list_next(iters)
-#                    name = keyPairs.name
-#                    if keyPairs.value is not NULL:
-#                        value = keyPairs.value
-#                    else:
-#                        value = None
-#                    key_pairs[name] = value
-#                slurm.slurm_list_iterator_destroy(iters)
-#                Ctl_dict['key_pairs'] = key_pairs
-
-        self.__ConfigDict = Ctl_dict
-
-
-#
-# Partition Class
-#
-
-
-cdef class partition:
-    """Slurm Partition Information."""
-
-    cdef:
-        slurm.partition_info_msg_t *_Partition_ptr
-        slurm.time_t _lastUpdate
-        uint16_t _ShowFlags
-        dict _PartDict
-
-    def __cinit__(self):
-        self._Partition_ptr = NULL
-        self._ShowFlags = slurm.SHOW_ALL
-        self._lastUpdate = <time_t> NULL
-
-    def __dealloc__(self):
-        pass
-
-    def lastUpdate(self):
-        """Return time (epoch seconds) the partition data was updated.
-
-        Returns:
-            (int): Epoch seconds
-        """
-        return self._lastUpdate
-
-    def ids(self):
-        """Return the partition IDs from retrieved data.
-
-        Returns:
-            (dict): Dictionary of partition IDs
-        """
-        cdef:
-            int rc
-            int apiError
-            uint32_t i
-
-        rc = slurm.slurm_load_partitions(<time_t> NULL, &self._Partition_ptr,
-                                         slurm.SHOW_ALL)
-
-        if rc == slurm.SLURM_SUCCESS:
-            self._lastUpdate = self._Partition_ptr.last_update
-            all_partitions = []
-
-            for record in self._Partition_ptr.partition_array[:self._Partition_ptr.record_count]:
-                all_partitions.append(stringOrNone(record.name, ''))
-
-            slurm.slurm_free_partition_info_msg(self._Partition_ptr)
-            self._Partition_ptr = NULL
-            return all_partitions
-        else:
-            apiError = slurm.slurm_get_errno()
-            raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
-
-    def find_id(self, partID):
-        """Get partition information for a given partition.
-
-        Args:
-            partID (str): Partition key string to search
-
-        Returns:
-            (dict): Dictionary of values for given partition
-        """
-        return self.get().get(partID)
-
-    def find(self, name='', val=''):
-        """Search for a property and associated value in the retrieved partition data.
-
-        Args:
-          name (str): key string to search
-          val (str): value string to match
-
-        Returns:
-          (list): List of IDs that match
-        """
-        cdef:
-            list retList = []
-            dict _partition_dict = {}
-
-        _partition_dict = self.get()
-
-        if val != '':
-            for key, value in self._partition_dict.items():
-                if _partition_dict[key][name] == val:
-                    retList.append(key)
-        return retList
-
-    def print_info_msg(self, int oneLiner=0):
-        """Display partition information from previous load partition method.
-
-        Args:
-            oneLiner (int, optional): Display on one line.
-        """
-        cdef:
-            int rc
-            int apiError
-
-        rc = slurm.slurm_load_partitions(<time_t> NULL, &self._Partition_ptr,
-                                         slurm.SHOW_ALL)
-
-        if rc == slurm.SLURM_SUCCESS:
-            slurm.slurm_print_partition_info_msg(slurm.stdout,
-                                                 self._Partition_ptr,
-                                                 oneLiner)
-            self._lastUpdate = self._Partition_ptr.last_update
-            slurm.slurm_free_partition_info_msg(self._Partition_ptr)
-            self._Partition_ptr = NULL
-        else:
-            apiError = slurm.slurm_get_errno()
-            raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
-
-    def delete(self, PartID):
-        """Delete a give slurm partition.
-
-        Args:
-            PartID (str): Name of slurm partition
-
-        Returns:
-            (int): 0 for success else set the slurm error code as
-                appropriately.
-        """
-        cdef:
-            slurm.delete_part_msg_t part_msg
-            int apiError
-            int errCode
-
-        b_partid = PartID.encode("UTF-8", "replace")
-        part_msg.name = b_partid
-
-        errCode = slurm.slurm_delete_partition(&part_msg)
-
-        if errCode != slurm.SLURM_SUCCESS:
-            apiError = slurm.slurm_get_errno()
-            raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
-
-        return errCode
-
-    def get(self):
-        """Get all slurm partition information
-
-        Returns:
-            (dict): Dictionary of dictionaries whose key is the partition name.
-        """
-        cdef:
-            int rc
-            int apiError
-            uint16_t preempt_mode
-            uint32_t i
-            slurm.partition_info_t *record
-
-        rc = slurm.slurm_load_partitions(<time_t> NULL, &self._Partition_ptr,
-                                         slurm.SHOW_ALL)
-
-        if rc == slurm.SLURM_SUCCESS:
-            self._PartDict = {}
-            self._lastUpdate = self._Partition_ptr.last_update
-
-            for record in self._Partition_ptr.partition_array[:self._Partition_ptr.record_count]:
-                Part_dict = {}
-                name = stringOrNone(record.name, '')
-
-                if record.allow_accounts or not record.deny_accounts:
-                    if record.allow_accounts == NULL or \
-                       record.allow_accounts[0] == "\0".encode("UTF-8"):
-                        Part_dict['allow_accounts'] = "ALL"
-                    else:
-                        Part_dict['allow_accounts'] = listOrNone(
-                            record.allow_accounts, ',')
-
-                    Part_dict['deny_accounts'] = None
-                else:
-                    Part_dict['allow_accounts'] = None
-                    Part_dict['deny_accounts'] = listOrNone(
-                        record.deny_accounts, ',')
-
-                if record.allow_alloc_nodes == NULL:
-                    Part_dict['allow_alloc_nodes'] = "ALL"
-                else:
-                    Part_dict['allow_alloc_nodes'] = listOrNone(
-                        record.allow_alloc_nodes, ',')
-
-                if record.allow_groups == NULL or \
-                   record.allow_groups[0] == "\0".encode("UTF-8"):
-                    Part_dict['allow_groups'] = "ALL"
-                else:
-                    Part_dict['allow_groups'] = listOrNone(
-                        record.allow_groups, ',')
-
-                if record.allow_qos or not record.deny_qos:
-                    if record.allow_qos == NULL or \
-                       record.allow_qos[0] == "\0".encode("UTF-8"):
-                        Part_dict['allow_qos'] = "ALL"
-                    else:
-                        Part_dict['allow_qos'] = listOrNone(
-                            record.allow_qos, ',')
-                    Part_dict['deny_qos'] = None
-                else:
-                    Part_dict['allow_qos'] = None
-                    Part_dict['deny_qos'] = listOrNone(record.allow_qos, ',')
-
-                if record.alternate != NULL:
-                    Part_dict['alternate'] = stringOrNone(record.alternate, '')
-                else:
-                    Part_dict['alternate'] = None
-
-                Part_dict['billing_weights_str'] = stringOrNone(
-                    record.billing_weights_str, '')
-
-                #TODO: cpu_bind
-                Part_dict['cr_type'] = record.cr_type
-
-                if record.def_mem_per_cpu & slurm.MEM_PER_CPU:
-                    if record.def_mem_per_cpu == slurm.MEM_PER_CPU:
-                        Part_dict['def_mem_per_cpu'] = "UNLIMITED"
-                        Part_dict['def_mem_per_node'] = None
-                    else:
-                        Part_dict['def_mem_per_cpu'] = record.def_mem_per_cpu & (~slurm.MEM_PER_CPU)
-                        Part_dict['def_mem_per_node'] = None
-                elif record.def_mem_per_cpu == 0:
-                    Part_dict['def_mem_per_cpu'] = None
-                    Part_dict['def_mem_per_node'] = "UNLIMITED"
-                else:
-                    Part_dict['def_mem_per_cpu'] = None
-                    Part_dict['def_mem_per_node'] = record.def_mem_per_cpu
-
-                if record.default_time == slurm.INFINITE:
-                    Part_dict['default_time'] = "UNLIMITED"
-                    Part_dict['default_time_str'] = "UNLIMITED"
-                elif record.default_time == slurm.NO_VAL:
-                    Part_dict['default_time'] = "NONE"
-                    Part_dict['default_time_str'] = "NONE"
-                else:
-                    Part_dict['default_time'] = record.default_time * 60
-                    Part_dict['default_time_str'] = secs2time_str(
-                        record.default_time * 60)
-
-                Part_dict['flags'] = get_partition_mode(record.flags,
-                                                         record.max_share)
-                Part_dict['grace_time'] = record.grace_time
-
-                # TODO: job_defaults
-                if record.max_cpus_per_node == slurm.INFINITE:
-                    Part_dict['max_cpus_per_node'] = "UNLIMITED"
-                else:
-                    Part_dict['max_cpus_per_node'] = record.max_cpus_per_node
-
-                if record.max_mem_per_cpu & slurm.MEM_PER_CPU:
-                    if record.max_mem_per_cpu == slurm.MEM_PER_CPU:
-                        Part_dict['max_mem_per_cpu'] = "UNLIMITED"
-                        Part_dict['max_mem_per_node'] = None
-                    else:
-                        Part_dict['max_mem_per_cpu'] = record.max_mem_per_cpu & (~slurm.MEM_PER_CPU)
-                        Part_dict['max_mem_per_node'] = None
-                elif record.max_mem_per_cpu == 0:
-                    Part_dict['max_mem_per_cpu'] = None
-                    Part_dict['max_mem_per_node'] = "UNLIMITED"
-                else:
-                    Part_dict['max_mem_per_cpu'] = None
-                    Part_dict['max_mem_per_node'] = record.max_mem_per_cpu
-
-                if record.max_nodes == slurm.INFINITE:
-                    Part_dict['max_nodes'] = "UNLIMITED"
-                else:
-                    Part_dict['max_nodes'] = record.max_nodes
-
-                Part_dict['max_share'] = record.max_share
-
-                if record.max_time == slurm.INFINITE:
-                    Part_dict['max_time'] = "UNLIMITED"
-                    Part_dict['max_time_str'] = "UNLIMITED"
-                else:
-                    Part_dict['max_time'] = record.max_time * 60
-                    Part_dict['max_time_str'] = secs2time_str(record.max_time * 60)
-
-                Part_dict['min_nodes'] = record.min_nodes
-                Part_dict['name'] = stringOrNone(record.name, '')
-                Part_dict['nodes'] = stringOrNone(record.nodes, '')
-
-                if record.over_time_limit == slurm.NO_VAL16:
-                    Part_dict['over_time_limit'] = "NONE"
-                elif record.over_time_limit == slurm.INFINITE16:
-                    Part_dict['over_time_limit'] = "UNLIMITED"
-                else:
-                    Part_dict['over_time_limit'] = record.over_time_limit
-
-                # FIXME
-                # They removed the slurm_get_preempt_mode() function
-                # It must now be read from the slurm config
-                # https://github.com/SchedMD/slurm/commit/bd76db3cd28f418f31de877f3c39a439b09289f7
-
-                preempt_mode = record.preempt_mode
-                if preempt_mode == slurm.NO_VAL16:
-                      Part_dict['preempt_mode'] = stringOrNone(
-                                slurm.slurm_preempt_mode_string(preempt_mode), ''
-                                )
-                Part_dict['priority_job_factor'] = record.priority_job_factor
-                Part_dict['priority_tier'] = record.priority_tier
-                Part_dict['qos_char'] = stringOrNone(record.qos_char, '')
-                Part_dict['resume_timeout'] = record.resume_timeout
-                Part_dict['state'] = get_partition_state(record.state_up)
-                Part_dict['suspend_time'] = record.suspend_time
-                Part_dict['suspend_timout'] = record.suspend_timeout
-                Part_dict['total_cpus'] = record.total_cpus
-                Part_dict['total_nodes'] = record.total_nodes
-                Part_dict['tres_fmt_str'] = stringOrNone(record.tres_fmt_str, '')
-
-                self._PartDict["%s" % name] = Part_dict
-            slurm.slurm_free_partition_info_msg(self._Partition_ptr)
-            self._Partition_ptr = NULL
-            return self._PartDict
-        else:
-            apiError = slurm.slurm_get_errno()
-            raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
-
-
-    def update(self, dict Partition_dict):
-        """Update a slurm partition.
-
-        Args:
-            Partition_dict (dict): A populated partition dictionary, an empty
-                one is created by create_partition_dict
-
-        Returns:
-          (int): 0 for success, -1 for error, and the slurm error code is set
-              appropriately.
-        """
-        cdef int errCode = slurm_update_partition(Partition_dict)
-        return errCode
-
-    def create(self, dict Partition_dict):
-        """Create a slurm partition.
-
-        Args:
-            Partition_dict (dict): A populated partition dictionary, an empty
-                one can be created by create_partition_dict
-
-        Returns:
-            (int): 0 for success or -1 for error, and the slurm error code is
-                set appropriately.
-        """
-        cdef int errCode = slurm_create_partition(Partition_dict)
-        return errCode
-
-
-def create_partition_dict():
-    """Returns a dictionary that can be populated by the user
-    and used for the update_partition and create_partition calls.
-
-    Returns:
-      (dict): Empty reservation dictionary
-    """
-    return {
-        'Alternate': None,
-        'Name': None,
-        'MaxTime': 0,
-        'DefaultTime': 0,
-        'MaxNodes': 0,
-        'MinNodes': 0,
-        'Default': 0,
-        'Hidden': 0,
-        'RootOnly': 0,
-        'Shared': 0,
-        'Priority': 0,
-        'State': 0,
-        'Nodes': None,
-        'AllowGroups': None,
-        'AllocNodes': None
-    }
-
-
-def slurm_create_partition(dict partition_dict):
-    """Create a slurm partition.
-
-    Args:
-        partition_dict (dict): A populated partition dictionary, an empty one
-            can be created by create_partition_dict
-
-    Returns:
-        (int): 0 for success or -1 for error, and the slurm error code is set
-            appropriately.
-    """
-    cdef:
-        slurm.update_part_msg_t part_msg_ptr
-        int errCode
-
-    slurm.slurm_init_part_desc_msg(&part_msg_ptr)
-
-    b_name = partition_dict['Name'].encode("UTF-8", "replace")
-    part_msg_ptr.name = b_name
-
-    if partition_dict.get('DefaultTime'):
-        part_msg_ptr.default_time = partition_dict['DefaultTime']
-
-    if partition_dict.get('MaxNodes'):
-        part_msg_ptr.max_nodes = partition_dict['MaxNodes']
-
-    if partition_dict.get('MinNodes'):
-        part_msg_ptr.min_nodes = partition_dict['MinNodes']
-
-    errCode = slurm.slurm_create_partition(&part_msg_ptr)
-    return errCode
-
-
-def slurm_update_partition(dict partition_dict):
-    """Update a slurm partition.
-
-    Args:
-        partition_dict (dict): A populated partition dictionary, an empty one
-            is created by create_partition_dict
-
-    Returns:
-      (int): 0 for success, -1 for error, and the slurm error code is set
-          appropriately.
-    """
-    cdef:
-        slurm.update_part_msg_t part_msg_ptr
-        unsigned int uint32_value
-        unsigned int time_value
-        int int_value = 0
-        int errCode = 0
-
-    slurm.slurm_init_part_desc_msg(&part_msg_ptr)
-
-    if partition_dict.get('Name'):
-        b_name = partition_dict['Name'].encode("UTF-8", "replace")
-        part_msg_ptr.name = b_name
-
-    if partition_dict.get('Alternate'):
-        b_alternate = partition_dict['Alternate'].encode("UTF-8", "replace")
-        part_msg_ptr.alternate = b_alternate
-
-    if partition_dict.get('MaxTime'):
-        part_msg_ptr.max_time = partition_dict['MaxTime']
-
-    if partition_dict.get('DefaultTime'):
-        part_msg_ptr.default_time = partition_dict['DefaultTime']
-
-    if partition_dict.get('MaxNodes'):
-        part_msg_ptr.max_nodes = partition_dict['MaxNodes']
-
-    if partition_dict.get('MinNodes'):
-        part_msg_ptr.min_nodes = partition_dict['MinNodes']
-
-    state = partition_dict.get('State')
-    if state:
-        if state == 'DOWN':
-            part_msg_ptr.state_up = PARTITION_DOWN
-        elif state == 'UP':
-            part_msg_ptr.state_up = PARTITION_UP
-        elif state == 'DRAIN':
-            part_msg_ptr.state_up = PARTITION_DRAIN
-        else:
-            errCode = -1
-
-    if partition_dict.get('Nodes'):
-        b_nodes = partition_dict['Nodes'].encode("UTF-8")
-        part_msg_ptr.nodes = b_nodes
-
-    if partition_dict.get('AllowGroups'):
-        b_allow_groups = partition_dict['AllowGroups'].encode("UTF-8")
-        part_msg_ptr.allow_groups = b_allow_groups
-
-    if partition_dict.get('AllocNodes'):
-        b_allow_alloc_nodes = partition_dict['AllocNodes'].encode("UTF-8")
-        part_msg_ptr.allow_alloc_nodes = b_allow_alloc_nodes
-
-    errCode = slurm.slurm_update_partition(&part_msg_ptr)
-    return errCode
-
-
-def slurm_delete_partition(PartID):
-    """Delete a slurm partition.
-
-    Args:
-        PartID (str): Name of slurm partition
-
-    Returns:
-        (int): 0 for success else set the slurm error code as appropriately.
-    """
-    cdef:
-        slurm.delete_part_msg_t part_msg
-        int apiError
-        int errCode
-
-    b_partid = PartID.encode("UTF-8", "replace")
-    part_msg.name = b_partid
-    errCode = slurm.slurm_delete_partition(&part_msg)
-
-    if errCode != slurm.SLURM_SUCCESS:
-        apiError = slurm.slurm_get_errno()
-        raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
-
-    return errCode
-
-
-#
 # Slurm Ping/Reconfig/Shutdown functions
 #
 
@@ -1351,7 +479,7 @@ cpdef int slurm_ping(int Controller=0) except? -1:
     cdef int errCode = slurm.slurm_ping(Controller)
 
     if errCode != 0:
-        apiError = slurm.slurm_get_errno()
+        apiError = slurm_get_errno()
         raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     return errCode
@@ -1367,7 +495,7 @@ cpdef int slurm_reconfigure() except? -1:
     cdef int errCode = slurm.slurm_reconfigure()
 
     if errCode != 0:
-        apiError = slurm.slurm_get_errno()
+        apiError = slurm_get_errno()
         raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     return errCode
@@ -1391,7 +519,7 @@ cpdef int slurm_shutdown(uint16_t Options=0) except? -1:
     cdef int errCode = slurm.slurm_shutdown(Options)
 
     if errCode != 0:
-        apiError = slurm.slurm_get_errno()
+        apiError = slurm_get_errno()
         raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     return errCode
@@ -1425,7 +553,7 @@ cpdef int slurm_set_debug_level(uint32_t DebugLevel=0) except? -1:
     cdef int errCode = slurm.slurm_set_debug_level(DebugLevel)
 
     if errCode != 0:
-        apiError = slurm.slurm_get_errno()
+        apiError = slurm_get_errno()
         raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     return errCode
@@ -1447,7 +575,7 @@ cpdef int slurm_set_debugflags(uint32_t debug_flags_plus=0,
                                                   debug_flags_minus)
 
     if errCode != 0:
-        apiError = slurm.slurm_get_errno()
+        apiError = slurm_get_errno()
         raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     return errCode
@@ -1466,7 +594,7 @@ cpdef int slurm_set_schedlog_level(uint32_t Enable=0) except? -1:
     cdef int errCode = slurm.slurm_set_schedlog_level(Enable)
 
     if errCode != 0:
-        apiError = slurm.slurm_get_errno()
+        apiError = slurm_get_errno()
         raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     return errCode
@@ -1490,7 +618,7 @@ cpdef int slurm_suspend(uint32_t JobID=0) except? -1:
     cdef int errCode = slurm.slurm_suspend(JobID)
 
     if errCode != 0:
-        apiError = slurm.slurm_get_errno()
+        apiError = slurm_get_errno()
         raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     return errCode
@@ -1509,7 +637,7 @@ cpdef int slurm_resume(uint32_t JobID=0) except? -1:
     cdef int errCode = slurm.slurm_resume(JobID)
 
     if errCode != 0:
-        apiError = slurm.slurm_get_errno()
+        apiError = slurm_get_errno()
         raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     return errCode
@@ -1528,7 +656,7 @@ cpdef int slurm_requeue(uint32_t JobID=0, uint32_t State=0) except? -1:
     cdef int errCode = slurm.slurm_requeue(JobID, State)
 
     if errCode != 0:
-        apiError = slurm.slurm_get_errno()
+        apiError = slurm_get_errno()
         raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     return errCode
@@ -1547,7 +675,7 @@ cpdef long slurm_get_rem_time(uint32_t JobID=0) except? -1:
     cdef long errCode = slurm.slurm_get_rem_time(JobID)
 
     if errCode != 0:
-        apiError = slurm.slurm_get_errno()
+        apiError = slurm_get_errno()
         raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     return errCode
@@ -1567,7 +695,7 @@ cpdef time_t slurm_get_end_time(uint32_t JobID=0) except? -1:
     cdef int errCode = slurm.slurm_get_end_time(JobID, &EndTime)
 
     if errCode != 0:
-        apiError = slurm.slurm_get_errno()
+        apiError = slurm_get_errno()
         raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     return EndTime
@@ -1602,7 +730,7 @@ cpdef int slurm_signal_job(uint32_t JobID=0, uint16_t Signal=0) except? -1:
     cdef int errCode = slurm.slurm_signal_job(JobID, Signal)
 
     if errCode != 0:
-        apiError = slurm.slurm_get_errno()
+        apiError = slurm_get_errno()
         raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     return errCode
@@ -1629,7 +757,7 @@ cpdef int slurm_signal_job_step(uint32_t JobID=0, uint32_t JobStep=0,
     cdef int errCode = slurm.slurm_signal_job_step(JobID, JobStep, Signal)
 
     if errCode != 0:
-        apiError = slurm.slurm_get_errno()
+        apiError = slurm_get_errno()
         raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     return errCode
@@ -1651,7 +779,7 @@ cpdef int slurm_kill_job(uint32_t JobID=0, uint16_t Signal=0,
     cdef int errCode = slurm.slurm_kill_job(JobID, Signal, BatchFlag)
 
     if errCode != 0:
-        apiError = slurm.slurm_get_errno()
+        apiError = slurm_get_errno()
         raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     return errCode
@@ -1673,7 +801,7 @@ cpdef int slurm_kill_job_step(uint32_t JobID=0, uint32_t JobStep=0,
     cdef int errCode = slurm.slurm_kill_job_step(JobID, JobStep, Signal, 0)
 
     if errCode != 0:
-        apiError = slurm.slurm_get_errno()
+        apiError = slurm_get_errno()
         raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     return errCode
@@ -1696,7 +824,7 @@ cpdef int slurm_kill_job2(const char *JobID='', uint16_t Signal=0,
     cdef int errCode = slurm.slurm_kill_job2(JobID, Signal, BatchFlag, sibling)
 
     if errCode != 0:
-        apiError = slurm.slurm_get_errno()
+        apiError = slurm_get_errno()
         raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     return errCode
@@ -1716,7 +844,7 @@ cpdef int slurm_complete_job(uint32_t JobID=0, uint32_t JobCode=0) except? -1:
     cdef int errCode = slurm.slurm_complete_job(JobID, JobCode)
 
     if errCode != 0:
-        apiError = slurm.slurm_get_errno()
+        apiError = slurm_get_errno()
         raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     return errCode
@@ -1736,7 +864,7 @@ cpdef int slurm_notify_job(uint32_t JobID=0, char* Msg='') except? -1:
     cdef int errCode = slurm.slurm_notify_job(JobID, Msg)
 
     if errCode != 0:
-        apiError = slurm.slurm_get_errno()
+        apiError = slurm_get_errno()
         raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     return errCode
@@ -1756,7 +884,7 @@ cpdef int slurm_terminate_job_step(uint32_t JobID=0, uint32_t JobStep=0) except?
     cdef int errCode = slurm.slurm_terminate_job_step(JobID, JobStep)
 
     if errCode != 0:
-        apiError = slurm.slurm_get_errno()
+        apiError = slurm_get_errno()
         raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     return errCode
@@ -1824,7 +952,7 @@ cdef class job:
             self._job_ptr = NULL
             return all_jobs
         else:
-            apiError = slurm.slurm_get_errno()
+            apiError = slurm_get_errno()
             raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     def find(self, name='', val=''):
@@ -1855,8 +983,6 @@ cdef class job:
         After calling this, the job pointer can be used in other methods
         to operate on the information of the job.
 
-        This method only accepts integer jobid.
-
         Raises an value error if the jobid does not correspond to a existing job.
 
         Args:
@@ -1866,16 +992,16 @@ cdef class job:
             int apiError
             int rc
 
-        if isinstance(jobid, int) or isinstance(jobid, long):
-            jobid = long(jobid)
+        # jobid can be given as int or string
+        if isinstance(jobid, int):
+            jobid = str(jobid).encode("UTF-8")
         else:
-            raise ValueError("_load_single_job needs a integer jobid: %s", jobid)
-
+            jobid = jobid.encode("UTF-8")
         # load the job which sets the self._job_ptr pointer
         rc = slurm.slurm_load_job(&self._job_ptr, jobid, self._ShowFlags)
 
         if rc != slurm.SLURM_SUCCESS:
-            apiError = slurm.slurm_get_errno()
+            apiError = slurm_get_errno()
             raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     def find_id(self, jobid):
@@ -1925,7 +1051,7 @@ cdef class job:
         if rc == slurm.SLURM_SUCCESS:
             return self.get_job_ptr()
         else:
-            apiError = slurm.slurm_get_errno()
+            apiError = slurm_get_errno()
             raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     def get(self):
@@ -1947,7 +1073,7 @@ cdef class job:
         if rc == slurm.SLURM_SUCCESS:
             return self.get_job_ptr()
         else:
-            apiError = slurm.slurm_get_errno()
+            apiError = slurm_get_errno()
             raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     cdef dict get_job_ptr(self):
@@ -2205,7 +1331,6 @@ cdef class job:
             else:
                 Job_dict['shared'] = "OK"
 
-            Job_dict['show_flags'] = self._record.show_flags
             Job_dict['sockets_per_board'] = self._record.sockets_per_board
             Job_dict['sockets_per_node'] = int16orNone(self._record.sockets_per_node)
             Job_dict['start_time'] = self._record.start_time
@@ -2274,8 +1399,8 @@ cdef class job:
                 if host_list:
                     for node_name in host_list:
                         b_node_name = node_name.decode("UTF-8")
-                        Job_dict['cpus_allocated'][b_node_name] = self.__cpus_allocated_on_node(node_name)
-                        Job_dict['cpus_alloc_layout'][b_node_name] = self.__cpus_allocated_list_on_node(node_name)
+                        Job_dict['cpus_allocated'][b_node_name] = 0
+                        Job_dict['cpus_alloc_layout'][b_node_name] = []
                 hl.destroy()
 
             self._JobDict[self._record.job_id] = Job_dict
@@ -2283,63 +1408,6 @@ cdef class job:
         slurm.slurm_free_job_info_msg(self._job_ptr)
         self._job_ptr = NULL
         return self._JobDict
-
-    cpdef int __cpus_allocated_on_node_id(self, int nodeID=0):
-        """Get the number of cpus allocated to a job on a node by node name.
-
-        Args:
-            nodeID (int): Numerical node ID
-
-        Returns:
-            int: Num of CPUs allocated to job on this node or -1 on error
-        """
-        cdef:
-            slurm.job_resources_t *job_resrcs_ptr = <slurm.job_resources_t *>self._record.job_resrcs
-            int retval = slurm.slurm_job_cpus_allocated_on_node_id(job_resrcs_ptr, nodeID)
-
-        return retval
-
-    cdef int __cpus_allocated_on_node(self, char* nodeName=''):
-        """Get the number of cpus allocated to a slurm job on a node by node name.
-
-        Args:
-            nodeName (str): Name of the node
-
-        Returns:
-            Num of CPUs allocated to job on this node or -1 on error
-        """
-        cdef:
-            slurm.job_resources_t *job_resrcs_ptr = <slurm.job_resources_t *>self._record.job_resrcs
-            int retval = slurm.slurm_job_cpus_allocated_on_node(job_resrcs_ptr, nodeName)
-
-        return retval
-
-    cdef list __cpus_allocated_list_on_node(self, char* nodeName=''):
-        """Get a list of cpu ids allocated to current slurm job on a node by node name.
-
-        Args:
-            nodeName (str): Name of the node
-
-        Returns:
-            list of allocated cpus (empty, if nothing found or error)
-        """
-        cdef:
-            int error = 0
-            int cpus_len = 1024
-            char *cpus
-            list cpus_list = []
-            slurm.job_resources_t *job_resrcs_ptr = <slurm.job_resources_t *>self._record.job_resrcs
-
-        cpus = <char *>malloc(cpus_len * sizeof(char))
-        if cpus is not NULL:
-            try:
-                error = slurm.slurm_job_cpus_allocated_str_on_node(cpus, cpus_len, job_resrcs_ptr, nodeName)
-                if error == 0:
-                    cpus_list = self.__unrange(stringOrNone(cpus, ''))
-            finally:
-                free(cpus)
-
-        return cpus_list
 
     def __unrange(self, bit_str):
         """converts a string describing a bitmap (from slurm_job_cpus_allocated_str_on_node()) to a list.
@@ -2370,28 +1438,6 @@ cdef class job:
         if self._job_ptr is not NULL:
             slurm.slurm_free_job_info_msg(self._job_ptr)
 
-    def print_job_info_msg(self, int oneLiner=0):
-        """Print the data structure describing all job step records.
-
-        Args:
-            oneLiner (int, optional): Whether to print the data in one line or
-                not
-        """
-        cdef:
-            int rc
-            int apiError
-
-        rc = slurm.slurm_load_jobs(<time_t> NULL, &self._job_ptr, self._ShowFlags)
-
-        if rc == slurm.SLURM_SUCCESS:
-            slurm.slurm_print_job_info_msg(slurm.stdout, self._job_ptr,
-                                           oneLiner)
-            slurm.slurm_free_job_info_msg(self._job_ptr)
-            self._job_ptr = NULL
-        else:
-            apiError = slurm.slurm_get_errno()
-            raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
-
     def slurm_job_batch_script(self, jobid):
         """Return the contents of the batch-script for a Job.
 
@@ -2404,10 +1450,10 @@ cdef class job:
         Returns:
             (str): The content of the batch script.
         """
-        if isinstance(jobid, int) or isinstance(jobid, long):
-            jobid = long(jobid)
+        if isinstance(jobid, int):
+            jobid = str(jobid).encode("UTF-8")
         else:
-            raise ValueError("_load_single_job needs a integer jobid: %s", jobid)
+            jobid = jobid.encode("UTF-8")
 
         return pyslurm.core.job.Job(jobid).get_batch_script()
 
@@ -2800,8 +1846,26 @@ cdef class job:
 #                  cname, isenv ? "SLURM_CLUSTERS" : "--cluster")
             sys.exit(slurm.SLURM_ERROR)
 
+    cdef bool is_alps_cray_system(self):
+        if slurm.working_cluster_rec:
+            return slurm.working_cluster_rec.flags
+        if ALPS_CRAY_SYSTEM:
+            return True
+        return False
+
     cdef int _check_cluster_specific_settings(self, slurm.job_desc_msg_t *req):
         cdef int rc = slurm.SLURM_SUCCESS
+
+        if self.is_alps_cray_system():
+            if req.shared and req.shared != <uint16_t>slurm.NO_VAL:
+                print("--share is not supported on Cray/ALPS systems.")
+                req.shared = <uint16_t>slurm.NO_VAL
+            if req.overcommit and req.overcommit != <uint8_t>slurm.NO_VAL:
+                print("--overcommit is not supported on Cray/ALPS systems.")
+                req.overcommit = False
+            if req.wait_all_nodes and req.wait_all_nodes != <uint16_t>slurm.NO_VAL:
+                print("--wait-all-nodes is handled automatically on Cray/ALPS systems.")
+                req.wait_all_nodes = <uint16_t>slurm.NO_VAL
         return rc
 
     def submit_batch_job(self, job_opts):
@@ -3024,7 +2088,7 @@ def slurm_pid2jobid(uint32_t JobPID=0):
         int errCode = slurm.slurm_pid2jobid(JobPID, &JobID)
 
     if errCode != 0:
-        apiError = slurm.slurm_get_errno()
+        apiError = slurm_get_errno()
         raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     return errCode, JobID
@@ -3120,9 +2184,7 @@ def slurm_get_errno():
     Returns:
         (int): Current slurm error number
     """
-    cdef int errNum = slurm.slurm_get_errno()
-
-    return errNum
+    return errno
 
 
 def slurm_strerror(int Errno=0):
@@ -3139,15 +2201,6 @@ def slurm_strerror(int Errno=0):
     return "%s" % errMsg
 
 
-def slurm_seterrno(int Errno=0):
-    """Set the slurm error number.
-
-    Args:
-        Errno (int): slurm error number
-    """
-    slurm.slurm_seterrno(Errno)
-
-
 def slurm_perror(char* Msg=''):
     """Print to standard error the supplied header.
 
@@ -3158,418 +2211,6 @@ def slurm_perror(char* Msg=''):
         Msg (str): slurm program error String
     """
     slurm.slurm_perror(Msg)
-
-
-#
-#
-# Slurm Node Read/Print/Update Class
-#
-
-
-cdef class node:
-    """Access/Modify/Update Slurm Node Information."""
-
-    cdef:
-        slurm.node_info_msg_t *_Node_ptr
-        slurm.partition_info_msg_t *_Part_ptr
-        uint16_t _ShowFlags
-        dict _NodeDict
-        slurm.time_t _lastUpdate
-
-    def __cinit__(self):
-        self._Node_ptr = NULL
-        self._Part_ptr = NULL
-        self._ShowFlags = slurm.SHOW_ALL | slurm.SHOW_DETAIL
-        self._lastUpdate = 0
-
-    def __dealloc__(self):
-        pass
-
-    def lastUpdate(self):
-        """Return last time (epoch seconds) the node data was updated.
-
-        Returns:
-            (int): Epoch seconds
-        """
-        return self._lastUpdate
-
-    def ids(self):
-        """Return the node IDs from retrieved data.
-
-        Returns:
-            (dict): Dictionary of node IDs
-        """
-        cdef:
-            int rc
-            int apiError
-            uint32_t i
-            list all_nodes
-
-        rc = slurm.slurm_load_node(<time_t> NULL, &self._Node_ptr, self._ShowFlags)
-
-        if rc == slurm.SLURM_SUCCESS:
-            all_nodes = []
-            for record in self._Node_ptr.node_array[:self._Node_ptr.record_count]:
-                all_nodes.append(stringOrNone(record.name, ''))
-            slurm.slurm_free_node_info_msg(self._Node_ptr)
-            self._Node_ptr = NULL
-            return all_nodes
-        else:
-            apiError = slurm.slurm_get_errno()
-            raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
-
-    def find_id(self, nodeID):
-        """Get node information for a given node.
-
-        Args:
-            nodeID (str): Node key string to search
-
-        Returns:
-            (dict): Dictionary of values for given node
-        """
-        return list(self.get_node(nodeID).values())[0]
-
-    def get(self):
-        """Get all slurm node information.
-
-        Returns:
-            (dict): Dictionary of dictionaries whose key is the node name.
-        """
-        return self.get_node(None)
-
-    def parse_gres(self, gres_str):
-        if gres_str:
-            return re.split(r',(?![^(]*\))', gres_str)
-
-    def get_node(self, nodeID):
-        """Get single slurm node information.
-
-        Args:
-            nodeID (str): Node key string to search. Default NULL.
-
-        Returns:
-            (dict): Dictionary of node info data.
-        """
-        cdef:
-            int rc
-            int rc_part
-            int apiError
-            int total_used
-            char *cloud_str
-            char *comp_str
-            char *drain_str
-            char *power_str
-            uint16_t err_cpus
-            uint16_t alloc_cpus
-            uint32_t i
-            uint32_t j
-            uint64_t alloc_mem
-            uint32_t node_state
-            slurm.node_info_t *record
-            dict Host_dict
-            char time_str[32]
-            char tmp_str[128]
-            int last_inx = 0
-            slurm.slurm_conf_t *slurm_ctl_conf_ptr = NULL
-
-        rc = slurm.slurm_load_node(<time_t>NULL, &self._Node_ptr, self._ShowFlags)
-
-        if rc != slurm.SLURM_SUCCESS:
-            apiError = slurm.slurm_get_errno()
-            raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
-
-        if slurm.slurm_load_ctl_conf(<time_t>NULL, &slurm_ctl_conf_ptr) != slurm.SLURM_SUCCESS:
-            raise ValueError("Cannot load slurmctld conf file")
-
-        rc_part = slurm.slurm_load_partitions(<time_t>NULL, &self._Part_ptr, slurm.SHOW_ALL)
-
-        if rc_part != slurm.SLURM_SUCCESS:
-            self._Part_ptr = NULL
-            slurm.slurm_perror("slurm_load_partitions error")
-
-        slurm.slurm_populate_node_partitions(self._Node_ptr, self._Part_ptr)
-
-        self._lastUpdate = self._Node_ptr.last_update
-        self._NodeDict = {}
-
-        for j in range(self._Node_ptr.record_count):
-            if nodeID:
-                i = (j + last_inx) % self._Node_ptr.record_count
-                if self._Node_ptr.node_array[i].name == NULL or (
-                    nodeID.encode("UTF-8") != self._Node_ptr.node_array[i].name):
-                    continue
-            elif self._Node_ptr.node_array[j].name == NULL:
-                continue
-            else:
-                i = j
-
-            record = &self._Node_ptr.node_array[i]
-
-            Host_dict = {}
-            cloud_str = ""
-            comp_str = ""
-            drain_str = ""
-            power_str = ""
-            err_cpus = 0
-            alloc_cpus = 0
-
-            if record.name is NULL:
-                continue
-
-            total_used = record.cpus
-
-            Host_dict['arch'] = stringOrNone(record.arch, '')
-            Host_dict['boards'] = record.boards
-            Host_dict['boot_time'] = record.boot_time
-            Host_dict['cores'] = record.cores
-            Host_dict['core_spec_cnt'] = record.core_spec_cnt
-            Host_dict['cores_per_socket'] = record.cores
-            # TODO: cpu_alloc, cpu_tot
-            Host_dict['cpus'] = record.cpus
-
-            # FIXME
-            #if record.cpu_bind:
-            #    slurm.slurm_sprint_cpu_bind_type(tmp_str, record.cpu_bind)
-            #    Host_dict['cpu_bind'] = stringOrNone(tmp_str, '')
-
-            Host_dict['cpu_load'] = int32orNone(record.cpu_load)
-            Host_dict['cpu_spec_list'] = listOrNone(record.cpu_spec_list, '')
-            Host_dict['extra'] = stringOrNone(record.extra, '')
-            Host_dict['features'] = listOrNone(record.features, '')
-            Host_dict['features_active'] = listOrNone(record.features_act, '')
-            Host_dict['free_mem'] = int64orNone(record.free_mem)
-            Host_dict['gres'] = listOrNone(record.gres, ',')
-            Host_dict['gres_drain'] = listOrNone(record.gres_drain, '')
-            Host_dict['gres_used'] = self.parse_gres(
-                stringOrNone(record.gres_used, '')
-            )
-            Host_dict['last_busy'] = record.last_busy
-            Host_dict['mcs_label'] = stringOrNone(record.mcs_label, '')
-            Host_dict['mem_spec_limit'] = record.mem_spec_limit
-            Host_dict['name'] = stringOrNone(record.name, '')
-
-            # TODO: next_state
-            Host_dict['node_addr'] = stringOrNone(record.node_addr, '')
-            Host_dict['node_hostname'] = stringOrNone(record.node_hostname, '')
-            Host_dict['os'] = stringOrNone(record.os, '')
-
-            if record.owner == slurm.NO_VAL:
-                Host_dict['owner'] = None
-            else:
-                Host_dict['owner'] = record.owner
-
-            Host_dict['partitions'] = listOrNone(record.partitions, ',')
-            Host_dict['real_memory'] = record.real_memory
-            Host_dict['slurmd_start_time'] = record.slurmd_start_time
-            Host_dict['sockets'] = record.sockets
-            Host_dict['threads'] = record.threads
-            Host_dict['tmp_disk'] = record.tmp_disk
-            Host_dict['weight'] = record.weight
-            Host_dict['tres_fmt_str'] = stringOrNone(record.tres_fmt_str, '')
-            Host_dict['version'] = stringOrNone(record.version, '')
-
-            Host_dict['reason'] = stringOrNone(record.reason, '')
-            if record.reason_time == 0:
-                Host_dict['reason_time'] = None
-            else:
-                Host_dict['reason_time'] = record.reason_time
-
-            if record.reason_uid == slurm.NO_VAL:
-                Host_dict['reason_uid'] = None
-            else:
-                Host_dict['reason_uid'] = record.reason_uid
-
-            # Energy statistics
-            Host_dict['energy'] = {}
-            if (not record.energy or record.energy.current_watts == slurm.NO_VAL):
-                Host_dict['energy']['current_watts'] = 0
-                Host_dict['energy']['ave_watts'] = 0
-            else:
-                Host_dict['energy']['current_watts'] = record.energy.current_watts
-                Host_dict['energy']['ave_watts'] = int(record.energy.ave_watts)
-
-            Host_dict['energy']['previous_consumed_energy'] = int(record.energy.previous_consumed_energy)
-
-            node_state = record.node_state
-            if (node_state & NODE_STATE_CLOUD):
-                node_state &= (~NODE_STATE_CLOUD)
-                cloud_str = "+CLOUD"
-
-            if (node_state & NODE_STATE_COMPLETING):
-                node_state &= (~NODE_STATE_COMPLETING)
-                comp_str = "+COMPLETING"
-
-            if (node_state & NODE_STATE_DRAIN):
-                node_state &= (~NODE_STATE_DRAIN)
-                drain_str = "+DRAIN"
-
-            if (node_state & NODE_STATE_FAIL):
-                node_state &= (~NODE_STATE_FAIL)
-                drain_str = "+FAIL"
-
-            if (node_state & NODE_STATE_POWERED_DOWN):
-                node_state &= (~NODE_STATE_POWERED_DOWN)
-                power_str = "+POWER"
-
-            if (node_state & NODE_STATE_POWERING_DOWN):
-                node_state &= (~NODE_STATE_POWERING_DOWN)
-                power_str = "+POWERING_DOWN"
-
-            slurm.slurm_get_select_nodeinfo(record.select_nodeinfo,
-                                            SELECT_NODEDATA_SUBCNT,
-                                            NODE_STATE_ALLOCATED,
-                                            &alloc_cpus)
-
-            Host_dict['alloc_cpus'] = alloc_cpus
-            total_used -= alloc_cpus
-
-            slurm.slurm_get_select_nodeinfo(record.select_nodeinfo,
-                                            SELECT_NODEDATA_SUBCNT,
-                                            NODE_STATE_ERROR, &err_cpus)
-
-            Host_dict['err_cpus'] = err_cpus
-            total_used -= err_cpus
-
-            if (alloc_cpus and err_cpus) or (total_used and
-               (total_used != record.cpus)):
-                node_state &= NODE_STATE_FLAGS
-                node_state |= NODE_STATE_MIXED
-
-            Host_dict['state'] = (
-                stringOrNone(slurm.slurm_node_state_string(node_state), '') +
-                stringOrNone(cloud_str, '') +
-                stringOrNone(comp_str, '') +
-                stringOrNone(drain_str, '') +
-                stringOrNone(power_str, '')
-            )
-
-            slurm.slurm_get_select_nodeinfo(record.select_nodeinfo,
-                                            SELECT_NODEDATA_MEM_ALLOC,
-                                            NODE_STATE_ALLOCATED, &alloc_mem)
-
-            Host_dict['alloc_mem'] = alloc_mem
-
-            b_name = stringOrNone(record.name, '')
-            self._NodeDict[b_name] = Host_dict
-
-            if nodeID:
-                last_inx = i
-                break
-
-        slurm.slurm_free_node_info_msg(self._Node_ptr)
-        slurm.slurm_free_partition_info_msg(self._Part_ptr)
-        slurm.slurm_free_ctl_conf(slurm_ctl_conf_ptr)
-        self._Node_ptr = NULL
-        self._Part_ptr = NULL
-        return self._NodeDict
-
-
-    def update(self, dict node_dict):
-        """Update slurm node information.
-
-        Args:
-            node_dict (dict): A populated node dictionary, an empty one is
-                created by create_node_dict
-
-        Returns:
-            (int): 0 for success or -1 for error, and the slurm error code is
-                set appropriately.
-        """
-        return slurm_update_node(node_dict)
-
-    def print_node_info_msg(self, int oneLiner=False):
-        """Output information about all slurm nodes.
-
-        Args:
-            oneLiner (int, optional): Print on one line
-        """
-        cdef:
-            int rc
-            int apiError
-
-        rc = slurm.slurm_load_node(<time_t> NULL, &self._Node_ptr,
-                                   self._ShowFlags)
-
-        if rc == slurm.SLURM_SUCCESS:
-            slurm.slurm_print_node_info_msg(slurm.stdout, self._Node_ptr, oneLiner)
-            slurm.slurm_free_node_info_msg(self._Node_ptr)
-            self._Node_ptr = NULL
-        else:
-            apiError = slurm.slurm_get_errno()
-            raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
-
-
-def slurm_update_node(dict node_dict):
-    """Update slurm node information.
-
-    Args:
-        node_dict (dict): A populated node dictionary, an empty one is created
-            by create_node_dict
-
-    Returns:
-        (int): 0 for success or -1 for error, and the slurm error code is set
-            appropriately.
-    """
-    cdef:
-        slurm.update_node_msg_t node_msg
-        int apiError = 0
-        int errCode = 0
-
-    if node_dict is {}:
-        return -1
-
-    slurm.slurm_init_update_node_msg(&node_msg)
-
-    if 'node_state' in node_dict:
-        # see enum node_states
-        node_msg.node_state = <uint16_t>node_dict['node_state']
-
-    if 'features' in node_dict:
-        b_features = node_dict['features'].encode("UTF-8", "replace")
-        node_msg.features = b_features
-
-    if 'gres' in node_dict:
-        b_gres = node_dict['gres'].encode("UTF-8")
-        node_msg.gres = b_gres
-
-    if 'node_names' in node_dict:
-        b_node_names = node_dict['node_names'].encode("UTF-8")
-        node_msg.node_names = b_node_names
-
-    if 'reason' in node_dict:
-        b_reason = node_dict['reason'].encode("UTF-8")
-        node_msg.reason = b_reason
-        node_msg.reason_uid = <uint32_t>os.getuid()
-
-    if 'weight' in node_dict:
-        node_msg.weight = <uint32_t>node_dict['weight']
-
-    errCode = slurm.slurm_update_node(&node_msg)
-
-    if errCode != slurm.SLURM_SUCCESS:
-        apiError = slurm.slurm_get_errno()
-        raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
-
-    return errCode
-
-
-def create_node_dict():
-    """Return a an update_node dictionary
-
-    This dictionary can be populated by the user and used for the update_node
-    call.
-
-    Returns:
-        (dict): Empty node dictionary
-    """
-    return {
-        'node_names': None,
-        'gres': None,
-        'reason': None,
-        'node_state': 0,
-        'weight': 0,
-        'features': None
-    }
 
 
 #
@@ -3730,10 +2371,6 @@ cdef class jobstep:
                     Step_dict['time_limit'] = job_step_info_ptr.job_steps[i].time_limit
                     Step_dict['time_limit_str'] = secs2time_str(job_step_info_ptr.job_steps[i].time_limit)
 
-                Step_dict['tres_alloc_str'] = stringOrNone(
-                    job_step_info_ptr.job_steps[i].tres_alloc_str, ''
-                )
-
                 Step_dict['tres_bind'] = stringOrNone(
                     job_step_info_ptr.job_steps[i].tres_bind, ''
                 )
@@ -3793,7 +2430,6 @@ cdef class jobstep:
 
             Node_cnt = old_job_step_ptr.node_cnt
 
-            Layout['front_end'] = stringOrNone(old_job_step_ptr.front_end, '')
             Layout['node_cnt'] = Node_cnt
             Layout['node_list'] = stringOrNone(old_job_step_ptr.node_list, '')
             Layout['plane_size'] = old_job_step_ptr.plane_size
@@ -4020,8 +2656,8 @@ cdef class trigger:
         while slurm.slurm_set_trigger(&trigger_set):
             slurm.slurm_perror('slurm_set_trigger')
             # EAGAIN
-            if slurm.slurm_get_errno() != 11:
-                errCode = slurm.slurm_get_errno()
+            if slurm_get_errno() != 11:
+                errCode = slurm_get_errno()
                 return errCode
 
             p_time.sleep(5)
@@ -4179,7 +2815,7 @@ cdef class reservation:
                                                     &new_reserve_info_ptr)
             if errCode == slurm.SLURM_SUCCESS:
                 slurm.slurm_free_reservation_info_msg(self._Res_ptr)
-            elif slurm.slurm_get_errno() == 1900:   # SLURM_NO_CHANGE_IN_DATA
+            elif slurm_get_errno() == 1900:   # SLURM_NO_CHANGE_IN_DATA
                 errCode = 0
                 new_reserve_info_ptr = self._Res_ptr
         else:
@@ -4190,7 +2826,7 @@ cdef class reservation:
             self._Res_ptr = new_reserve_info_ptr
             self._lastUpdate = self._Res_ptr.last_update
         else:
-            apiError = slurm.slurm_get_errno()
+            apiError = slurm_get_errno()
             raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
         return errCode
@@ -4379,7 +3015,7 @@ def slurm_create_reservation(dict reservation_dict={}):
         resID = stringOrNone(resid, '')
         free(resid)
     else:
-        apiError = slurm.slurm_get_errno()
+        apiError = slurm_get_errno()
         raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     return resID
@@ -4464,7 +3100,7 @@ def slurm_update_reservation(dict reservation_dict={}):
 
     errCode = slurm.slurm_update_reservation(&resv_msg)
     if errCode != 0:
-        apiError = slurm.slurm_get_errno()
+        apiError = slurm_get_errno()
         raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     return errCode
@@ -4492,7 +3128,7 @@ def slurm_delete_reservation(ResID):
     cdef int errCode = slurm.slurm_delete_reservation(&resv_msg)
 
     if errCode != 0:
-        apiError = slurm.slurm_get_errno()
+        apiError = slurm_get_errno()
         raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     return errCode
@@ -4521,106 +3157,6 @@ def create_reservation_dict():
         'users': None,
         'accounts': None
     }
-
-
-#
-# Topology Class
-#
-
-
-cdef class topology:
-    """Access/update slurm topology information."""
-    cdef:
-        slurm.topo_info_response_msg_t *_topo_info_ptr
-        dict _TopoDict
-
-    def __cinit__(self):
-        self._topo_info_ptr = NULL
-        self._TopoDict = {}
-
-    def __dealloc__(self):
-        self.__free()
-
-    def lastUpdate(self):
-        """Get the time (epoch seconds) the retrieved data was updated.
-
-        Returns:
-            (int): Epoch seconds
-        """
-        return self._lastUpdate
-
-    cpdef __free(self):
-        """Free the memory returned by load method."""
-        if self._topo_info_ptr is not NULL:
-            slurm.slurm_free_topo_info_msg(self._topo_info_ptr)
-
-    def load(self):
-        """Load slurm topology information."""
-        self.__load()
-
-    cpdef int __load(self) except? -1:
-        """Load slurm topology."""
-        cdef int apiError = 0
-        cdef int errCode = 0
-
-        if self._topo_info_ptr is not NULL:
-            # free previous pointer
-            slurm.slurm_free_topo_info_msg(self._topo_info_ptr)
-
-        errCode = slurm.slurm_load_topo(&self._topo_info_ptr)
-        if errCode != 0:
-            apiError = slurm.slurm_get_errno()
-            raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
-
-        return errCode
-
-    def get(self):
-        """Get slurm topology information.
-
-        Returns:
-            (dict): Dictionary whose key is the Topology ID
-        """
-        self.__load()
-        self.__get()
-
-        return self._TopoDict
-
-    cpdef __get(self):
-        cdef:
-            size_t i = 0
-            dict Topo = {}, Topo_dict
-
-        if self._topo_info_ptr is not NULL:
-
-            for i in range(self._topo_info_ptr.record_count):
-
-                Topo_dict = {}
-
-                name = stringOrNone(self._topo_info_ptr.topo_array[i].name, '')
-                Topo_dict['name'] = name
-                Topo_dict['nodes'] = stringOrNone(self._topo_info_ptr.topo_array[i].nodes, '')
-                Topo_dict['level'] = self._topo_info_ptr.topo_array[i].level
-                Topo_dict['link_speed'] = self._topo_info_ptr.topo_array[i].link_speed
-                Topo_dict['switches'] = stringOrNone(self._topo_info_ptr.topo_array[i].switches, '')
-
-                Topo[name] = Topo_dict
-
-        self._TopoDict = Topo
-
-    def display(self):
-        """Display topology information to standard output."""
-        self._print_topo_info_msg()
-
-    cpdef _print_topo_info_msg(self):
-        """Output information about topology based upon message as loaded
-        using slurm_load_topo.
-        """
-
-        if self._topo_info_ptr is not NULL:
-            slurm.slurm_print_topo_info_msg(slurm.stdout,
-                                            self._topo_info_ptr,
-                                            NULL,
-                                            self._ShowFlags)
 
 
 #
@@ -4740,7 +3276,7 @@ cdef class statistics:
             self._buf = NULL
             return self._StatsDict
         else:
-            apiError = slurm.slurm_get_errno()
+            apiError = slurm_get_errno()
             raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     def reset(self):
@@ -4758,7 +3294,7 @@ cdef class statistics:
         if errCode == slurm.SLURM_SUCCESS:
             return errCode
         else:
-            apiError = slurm.slurm_get_errno()
+            apiError = slurm_get_errno()
             raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     cpdef __rpc_num2string(self, uint16_t opcode):
@@ -5016,118 +3552,6 @@ cdef class statistics:
 
 
 #
-# Front End Node Class
-#
-
-
-cdef class front_end:
-    """Access/update slurm front end node information."""
-
-    cdef:
-        slurm.time_t Time
-        slurm.time_t _lastUpdate
-        slurm.front_end_info_msg_t *_FrontEndNode_ptr
-        # slurm.front_end_info_t _record
-        uint16_t _ShowFlags
-        dict _FrontEndDict
-
-    def __cinit__(self):
-        self._FrontEndNode_ptr = NULL
-        self._lastUpdate = 0
-        self._ShowFlags = 0
-        self._FrontEndDict = {}
-
-    def __dealloc__(self):
-        self.__destroy()
-
-    cpdef __destroy(self):
-        """Free the memory allocated by load front end node method."""
-        if self._FrontEndNode_ptr is not NULL:
-            slurm.slurm_free_front_end_info_msg(self._FrontEndNode_ptr)
-
-    def load(self):
-        """Load slurm front end node information."""
-        self.__load()
-
-    cdef int __load(self) except? -1:
-        """Load slurm front end node."""
-        cdef:
-            # slurm.front_end_info_msg_t *new_FrontEndNode_ptr = NULL
-            time_t last_time = <time_t>NULL
-            int apiError = 0
-            int errCode = 0
-
-        if self._FrontEndNode_ptr is not NULL:
-            # free previous pointer
-            slurm.slurm_free_front_end_info_msg(self._FrontEndNode_ptr)
-        else:
-            last_time = <time_t>NULL
-            errCode = slurm.slurm_load_front_end(last_time, &self._FrontEndNode_ptr)
-
-        if errCode != 0:
-            apiError = slurm.slurm_get_errno()
-            raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
-
-        return errCode
-
-    def lastUpdate(self):
-        """Return last time (sepoch seconds) the node data was updated.
-
-        Returns:
-            (int): Epoch seconds
-        """
-        return self._lastUpdate
-
-    def ids(self):
-        """Return the node IDs from retrieved data.
-
-        Returns:
-            (dict): Dictionary of node IDs
-        """
-        return list(self._FrontEndDict.keys())
-
-    def get(self):
-        """Get front end node information.
-
-        Returns:
-            (dict): Dictionary whose key is the Topology ID
-        """
-        self.__load()
-        self.__get()
-
-        return self._FrontEndDict
-
-    cdef __get(self):
-        cdef:
-            dict FENode = {}
-            dict FE_dict = {}
-
-        if self._FrontEndNode_ptr is not NULL:
-            for record in self._FrontEndNode_ptr.front_end_array[:self._FrontEndNode_ptr.record_count]:
-                FE_dict = {}
-                name = stringOrNone(record.name, '')
-
-                FE_dict['boot_time'] = record.boot_time
-                FE_dict['allow_groups'] = stringOrNone(record.allow_groups, '')
-                FE_dict['allow_users'] = stringOrNone(record.allow_users, '')
-                FE_dict['deny_groups'] = stringOrNone(record.deny_groups, '')
-                FE_dict['deny_users'] = stringOrNone(record.deny_users, '')
-
-                fe_node_state = get_node_state(record.node_state)
-                FE_dict['node_state'] = stringOrNone(fe_node_state, '')
-
-                FE_dict['reason'] = stringOrNone(record.reason, '')
-                FE_dict['reason_time'] = record.reason_time
-                FE_dict['reason_uid'] = record.reason_uid
-                FE_dict['slurmd_start_time'] = record.slurmd_start_time
-                FE_dict['version'] = stringOrNone(record.version, '')
-
-                FENode[name] = FE_dict
-
-        self._FrontEndDict = FENode
-
-
-#
 # QOS Class
 #
 
@@ -5138,7 +3562,7 @@ cdef class qos:
     cdef:
         void *dbconn
         dict _QOSDict
-        slurm.List _QOSList
+        slurm.list_t *_QOSList
 
     def __cinit__(self):
         self.dbconn = <void *>NULL
@@ -5161,10 +3585,10 @@ cdef class qos:
             slurm.slurmdb_qos_cond_t *new_qos_cond = NULL
             int apiError = 0
             void* dbconn = slurm.slurmdb_connection_get(NULL)
-            slurm.List QOSList = slurm.slurmdb_qos_get(dbconn, new_qos_cond)
+            slurm.list_t *QOSList = slurm.slurmdb_qos_get(dbconn, new_qos_cond)
 
         if QOSList is NULL:
-            apiError = slurm.slurm_get_errno()
+            apiError = slurm_get_errno()
             raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
         else:
             self._QOSList = QOSList
@@ -5201,8 +3625,8 @@ cdef class qos:
 
     cdef __get(self):
         cdef:
-            slurm.List qos_list = NULL
-            slurm.list_itr_t* iters = NULL
+            slurm.list_t *qos_list = NULL
+            slurm.list_itr_t *iters = NULL
             int i = 0
             int listNum = 0
             dict Q_dict = {}
@@ -5320,8 +3744,8 @@ cdef class slurmdb_jobs:
             int listNum = 0
             int apiError = 0
             dict J_dict = {}
-            slurm.List JOBSList
-            slurm.list_itr_t* iters = NULL
+            slurm.list_t *JOBSList
+            slurm.list_itr_t *iters = NULL
 
 
         if clusters:
@@ -5343,7 +3767,7 @@ cdef class slurmdb_jobs:
         if jobids:
             self.job_cond.step_list = slurm.slurm_list_create(NULL)
             for _jobid in jobids:
-                if isinstance(_jobid, int) or isinstance(_jobid, long):
+                if isinstance(_jobid, int):
                     _jobid = str(_jobid).encode("UTF-8")
                 else:
                     _jobid = _jobid.encode("UTF-8")
@@ -5352,7 +3776,7 @@ cdef class slurmdb_jobs:
         if userids:
             self.job_cond.userid_list = slurm.slurm_list_create(NULL)
             for _userid in userids:
-                if isinstance(_userid, int) or isinstance(_userid, long):
+                if isinstance(_userid, int):
                     _userid = str(_userid).encode("UTF-8")
                 else:
                     _userid = _userid.encode("UTF-8")
@@ -5360,20 +3784,20 @@ cdef class slurmdb_jobs:
 
         if starttime:
             self.job_cond.usage_start = slurm.slurm_parse_time(starttime, 1)
-            errno = slurm.slurm_get_errno()
+            errno = slurm_get_errno()
             if errno == slurm.ESLURM_INVALID_TIME_VALUE:
                 raise ValueError(slurm.slurm_strerror(errno), errno)
 
         if endtime:
             self.job_cond.usage_end = slurm.slurm_parse_time(endtime, 1)
-            errno = slurm.slurm_get_errno()
+            errno = slurm_get_errno()
             if errno == slurm.ESLURM_INVALID_TIME_VALUE:
                 raise ValueError(slurm.slurm_strerror(errno), errno)
 
         JOBSList = slurm.slurmdb_jobs_get(self.db_conn, self.job_cond)
 
         if JOBSList is NULL:
-            apiError = slurm.slurm_get_errno()
+            apiError = slurm_get_errno()
             raise ValueError(slurm.slurm_strerror(apiError), apiError)
 
         listNum = slurm.slurm_list_count(JOBSList)
@@ -5406,7 +3830,6 @@ cdef class slurmdb_jobs:
                 JOBS_info['gid'] = job.gid
                 JOBS_info['jobid'] = job.jobid
                 JOBS_info['jobname'] = stringOrNone(job.jobname, '')
-                JOBS_info['lft'] = job.lft
                 JOBS_info['partition'] = stringOrNone(job.partition, '')
                 JOBS_info['nodes'] = stringOrNone(job.nodes, '')
                 JOBS_info['priority'] = job.priority
@@ -5496,7 +3919,6 @@ cdef class slurmdb_jobs:
                         step_info['task_dist'] = step.task_dist
                         step_info['tot_cpu_sec'] = step.tot_cpu_sec
                         step_info['tot_cpu_usec'] = step.tot_cpu_usec
-                        step_info['tres_alloc_str'] = stringOrNone(step.tres_alloc_str, '')
                         step_info['user_cpu_sec'] = step.user_cpu_sec
                         step_info['user_cpu_usec'] = step.user_cpu_usec
 
@@ -5574,13 +3996,13 @@ cdef class slurmdb_reservations:
             (dict): Dictionary whose keys are the reservations ids
         """
         cdef:
-            slurm.List reservation_list
-            slurm.list_itr_t* iters = NULL
+            slurm.list_t *reservation_list
+            slurm.list_itr_t *iters = NULL
             slurm.slurmdb_reservation_rec_t *reservation
             int i = 0
             int j = 0
             int listNum
-            slurm.List _resvList
+            slurm.list_t *_resvList
 
         Reservation_dict = {}
         reservation_list = slurm.slurmdb_reservations_get(self.dbconn, self.reservation_cond)
@@ -5683,8 +4105,8 @@ cdef class slurmdb_clusters:
             (dict): Dictionary whose keys are the clusters ids
         """
         cdef:
-            slurm.List clusters_list
-            slurm.list_itr_t* iters = NULL
+            slurm.list_t *clusters_list
+            slurm.list_itr_t *iters = NULL
             slurm.slurmdb_cluster_rec_t *cluster = NULL
             int rc = slurm.SLURM_SUCCESS
             int i = 0
@@ -5793,8 +4215,8 @@ cdef class slurmdb_events:
             (dict): Dictionary whose keys are the events ids
         """
         cdef:
-            slurm.List event_list
-            slurm.list_itr_t* iters = NULL
+            slurm.list_t *event_list
+            slurm.list_itr_t *iters = NULL
             slurm.slurmdb_event_rec_t *event = NULL
             int i = 0
             int listNum = 0
@@ -5859,10 +4281,10 @@ cdef class slurmdb_reports:
             (dict): sreport information.
         """
         cdef:
-            slurm.List slurmdb_report_cluster_list = NULL
-            slurm.list_itr_t* itr = NULL
-            slurm.list_itr_t* cluster_itr = NULL
-            slurm.list_itr_t* tres_itr = NULL
+            slurm.list_t *slurmdb_report_cluster_list = NULL
+            slurm.list_itr_t *itr = NULL
+            slurm.list_itr_t *cluster_itr = NULL
+            slurm.list_itr_t *tres_itr = NULL
             slurm.slurmdb_cluster_cond_t cluster_cond
             slurm.slurmdb_report_assoc_rec_t *slurmdb_report_assoc = NULL
             slurm.slurmdb_report_cluster_rec_t *slurmdb_report_cluster = NULL
@@ -5873,7 +4295,7 @@ cdef class slurmdb_reports:
             int j
 
         slurm.slurmdb_init_cluster_cond(&cluster_cond, 0)
-        self.assoc_cond.with_sub_accts = 1
+        self.assoc_cond.flags = slurm.ASSOC_COND_FLAG_SUB_ACCTS
 
         if starttime:
             self.assoc_cond.usage_start = slurm.slurm_parse_time(starttime, 1)
@@ -5887,8 +4309,8 @@ cdef class slurmdb_reports:
         self.assoc_cond.usage_start = start_time
         self.assoc_cond.usage_end = end_time
 
-        self.assoc_cond.with_usage = 1
-        self.assoc_cond.with_deleted = 1
+        self.assoc_cond.flags |= slurm.ASSOC_COND_FLAG_WITH_USAGE
+        self.assoc_cond.flags |= slurm.ASSOC_COND_FLAG_WITH_DELETED
 
         slurmdb_report_cluster_list = slurm.slurmdb_report_cluster_account_by_user(
             self.db_conn, self.assoc_cond
@@ -5952,7 +4374,7 @@ def get_last_slurm_error():
     Returns:
         (int): Slurm error number and the associated error string
     """
-    rc = slurm.slurm_get_errno()
+    rc = slurm_get_errno()
 
     if rc == 0:
         return (rc, 'Success')
@@ -6011,7 +4433,6 @@ def get_trigger_res_type(uint16_t inx):
             * TRIGGER_RES_TYPE_SLURMCTLD  3
             * TRIGGER_RES_TYPE_SLURMDBD   4
             * TRIGGER_RES_TYPE_DATABASE   5
-            * TRIGGER_RES_TYPE_FRONT_END  6
             * TRIGGER_RES_TYPE_OTHER      7
 
     Returns:
@@ -6032,8 +4453,6 @@ cdef inline object __get_trigger_res_type(uint16_t ResType):
         rtype = 'slurmbdb'
     elif ResType == TRIGGER_RES_TYPE_DATABASE:
         rtype = 'database'
-    elif ResType == TRIGGER_RES_TYPE_FRONT_END:
-        rtype = 'front_end'
     elif ResType == TRIGGER_RES_TYPE_OTHER:
         rtype = 'other'
 
@@ -6225,9 +4644,6 @@ cdef inline list debug_flags2str(uint64_t debug_flags):
 
     if (debug_flags & DEBUG_FLAG_FEDR):
         debugFlags.append('Federation')
-
-    if (debug_flags & DEBUG_FLAG_FRONT_END):
-        debugFlags.append('FrontEnd')
 
     if (debug_flags & DEBUG_FLAG_GANG):
         debugFlags.append('Gang')
@@ -6639,7 +5055,7 @@ cdef class licenses:
             self._msg = NULL
             return all_licenses
         else:
-            apiError = slurm.slurm_get_errno()
+            apiError = slurm_get_errno()
             raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)
 
     def get(self):
@@ -6676,5 +5092,5 @@ cdef class licenses:
             self._msg = NULL
             return self._licDict
         else:
-            apiError = slurm.slurm_get_errno()
+            apiError = slurm_get_errno()
             raise ValueError(stringOrNone(slurm.slurm_strerror(apiError), ''), apiError)

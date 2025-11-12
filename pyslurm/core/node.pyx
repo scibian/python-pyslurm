@@ -28,7 +28,7 @@ from pyslurm.utils import ctime
 from pyslurm.utils.uint import *
 from pyslurm.core.error import RPCError, verify_rpc
 from pyslurm.utils.ctime import timestamp_to_date, _raw_time
-from pyslurm.settings import LOCAL_CLUSTER
+from pyslurm import settings
 from pyslurm import xcollections
 from pyslurm.utils.helpers import (
     uid_to_name,
@@ -78,7 +78,8 @@ cdef class Nodes(MultiClusterMap):
             (pyslurm.Nodes): Collection of node objects.
 
         Raises:
-            RPCError: When getting all the Nodes from the slurmctld failed.
+            (pyslurm.RPCError): When getting all the Nodes from the slurmctld
+                failed.
         """
         cdef:
             dict passwd = {}
@@ -139,7 +140,8 @@ cdef class Nodes(MultiClusterMap):
             (pyslurm.Nodes): Returns self
 
         Raises:
-            RPCError: When getting the Nodes from the slurmctld failed.
+            (pyslurm.RPCError): When getting the Nodes from the slurmctld
+                failed.
         """
         return xcollections.multi_reload(self)
 
@@ -153,7 +155,7 @@ cdef class Nodes(MultiClusterMap):
                 properties can be modified.
 
         Raises:
-            RPCError: When updating the Node was not successful.
+            (pyslurm.RPCError): When updating the Node was not successful.
 
         Examples:
             >>> import pyslurm
@@ -220,7 +222,7 @@ cdef class Node:
     def __init__(self, name=None, **kwargs):
         self._alloc_impl()
         self.name = name
-        self.cluster = LOCAL_CLUSTER
+        self.cluster = settings.LOCAL_CLUSTER
         for k, v in kwargs.items():
             setattr(self, k, v)
 
@@ -268,7 +270,7 @@ cdef class Node:
         wrap._alloc_info()
         wrap.passwd = {}
         wrap.groups = {}
-        wrap.cluster = LOCAL_CLUSTER
+        wrap.cluster = settings.LOCAL_CLUSTER
         memcpy(wrap.info, in_ptr, sizeof(node_info_t))
         return wrap
 
@@ -293,8 +295,8 @@ cdef class Node:
             (pyslurm.Node): Returns a new Node instance.
 
         Raises:
-            RPCError: If requesting the Node information from the slurmctld
-                was not successful.
+            (pyslurm.RPCError): If requesting the Node information from the
+                slurmctld was not successful.
 
         Examples:
             >>> import pyslurm
@@ -339,7 +341,7 @@ cdef class Node:
                 object itself.
 
         Raises:
-            RPCError: If creating the Node was not successful.
+            (pyslurm.RPCError): If creating the Node was not successful.
 
         Examples:
             >>> import pyslurm
@@ -367,7 +369,7 @@ cdef class Node:
                 properties can be modified.
 
         Raises:
-            RPCError: When updating the Node was not successful.
+            (pyslurm.RPCError): When updating the Node was not successful.
 
         Examples:
             >>> import pyslurm
@@ -389,7 +391,7 @@ cdef class Node:
         Implements the slurm_delete_node RPC.
 
         Raises:
-            RPCError: If deleting the Node was not successful.
+            (pyslurm.RPCError): If deleting the Node was not successful.
 
         Examples:
             >>> import pyslurm
@@ -505,14 +507,7 @@ cdef class Node:
 
     @property
     def allocated_memory(self):
-        cdef uint64_t alloc_memory = 0
-        if self.info.select_nodeinfo:
-            slurm_get_select_nodeinfo(
-                self.info.select_nodeinfo,
-                slurm.SELECT_NODEDATA_MEM_ALLOC,
-                slurm.NODE_STATE_ALLOCATED,
-                &alloc_memory)
-        return alloc_memory
+        return u64_parse(self.info.alloc_memory, on_noval=0)
 
     @property
     def real_memory(self):
@@ -545,7 +540,7 @@ cdef class Node:
 
     @property
     def effective_cpus(self):
-        return u16_parse(self.info.cpus_efctv)
+        return u16_parse(self.info.cpus_efctv, on_noval=0)
 
     @property
     def total_cpus(self):
@@ -614,35 +609,15 @@ cdef class Node:
 
     @property
     def allocated_tres(self):
-        cdef char *alloc_tres = NULL
-        if self.info.select_nodeinfo:
-            slurm_get_select_nodeinfo(
-                self.info.select_nodeinfo,
-                slurm.SELECT_NODEDATA_TRES_ALLOC_FMT_STR,
-                slurm.NODE_STATE_ALLOCATED,
-                &alloc_tres
-            )
-        return cstr.to_dict(alloc_tres)
+        return cstr.to_dict(self.info.alloc_tres_fmt_str)
 
     @property
     def allocated_cpus(self):
-        cdef uint16_t alloc_cpus = 0
-        if self.info.select_nodeinfo:
-            slurm_get_select_nodeinfo(
-                self.info.select_nodeinfo,
-                slurm.SELECT_NODEDATA_SUBCNT,
-                slurm.NODE_STATE_ALLOCATED,
-                &alloc_cpus
-            )
-        return alloc_cpus
+        return u16_parse(self.info.alloc_cpus, on_noval=0)
 
     @property
     def idle_cpus(self):
-        efctv = self.effective_cpus
-        if not efctv:
-            return None
-
-        return efctv - self.allocated_cpus
+        return self.effective_cpus - self.allocated_cpus
 
     @property
     def cpu_binding(self):
