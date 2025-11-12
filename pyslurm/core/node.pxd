@@ -43,7 +43,6 @@ from pyslurm.slurm cimport (
     slurm_free_node_info_members,
     slurm_free_update_node_msg,
     slurm_free_partition_info_msg,
-    slurm_get_select_nodeinfo,
     slurm_sprint_cpu_bind_type,
     slurm_node_state_string_complete,
     slurm_node_state_string,
@@ -62,7 +61,7 @@ cdef class Nodes(MultiClusterMap):
     """A [`Multi Cluster`][pyslurm.xcollections.MultiClusterMap] collection of [pyslurm.Node][] objects.
 
     Args:
-        nodes (Union[list[str], dict[str, Node], str], optional=None):
+        nodes (Union[list[str], dict[str, pyslurm.Node], str], optional=None):
             Nodes to initialize this collection with.
 
     Attributes:
@@ -214,13 +213,6 @@ cdef class Node:
             Current amount of watts consumed on the node.
         avg_watts (int):
             Average amount of watts consumed on the node.
-        external_sensors (dict):
-            External Sensor info for the Node.
-            The dict returned contains the following information:
-
-            * `joules_total` (int)
-            * `current_watts` (int)
-            * `temperature` (int)
         state (str):
             State the node is currently in.
         next_state (str):

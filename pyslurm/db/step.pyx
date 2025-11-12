@@ -34,8 +34,8 @@ from pyslurm.utils.helpers import (
     instance_to_dict,
     _get_exit_code,
     humanize_step_id,
+    cpu_freq_int_to_str,
 )
-from pyslurm.core.job.util import cpu_freq_int_to_str
 
 
 cdef class JobSteps(dict):
@@ -65,7 +65,7 @@ cdef class JobStep:
     cdef JobStep from_ptr(slurmdb_step_rec_t *step):
         cdef JobStep wrap = JobStep.__new__(JobStep)
         wrap.ptr = step
-        wrap.stats = JobStatistics.from_step(wrap)
+        wrap.stats = JobStepStatistics.from_step(wrap)
         return wrap
 
     def to_dict(self):
@@ -110,7 +110,7 @@ cdef class JobStep:
 
     @property
     def memory(self):
-        val = TrackableResources.find_count_in_str(self.ptr.tres_alloc_str, 
+        val = TrackableResources.find_count_in_str(self.ptr.tres_alloc_str,
                                                    slurm.TRES_MEM)
         return val
 

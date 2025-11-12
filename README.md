@@ -6,18 +6,18 @@ pyslurm is the Python client library for the [Slurm Workload Manager](https://sl
 
 * [Slurm](https://slurm.schedmd.com) - Slurm shared library and header files
 * [Python](https://www.python.org) - >= 3.6
-* [Cython](https://cython.org) - >= 0.29.36
+* [Cython](https://cython.org) - >= 0.29.37
 
-This Version is for Slurm 23.11.x
+This Version is for Slurm 25.05.x
 
 ## Versioning
 
 In pyslurm, the versioning scheme follows the official Slurm versioning. The
 first two numbers (`MAJOR.MINOR`) always correspond to Slurms Major-Release,
-for example `23.11`.
+for example `25.05`.
 The last number (`MICRO`) is however not tied in any way to Slurms `MICRO`
 version, but is instead PySlurm's internal Patch-Level. For example, any
-pyslurm 23.11.X version should work with any Slurm 23.11.X release.
+pyslurm 25.05.X version should work with any Slurm 25.05.X release.
 
 ## Installation
 
@@ -29,8 +29,8 @@ the corresponding paths to the necessary files.
 You can specify those with environment variables (recommended), for example:
 
 ```shell
-export SLURM_INCLUDE_DIR=/opt/slurm/23.11/include
-export SLURM_LIB_DIR=/opt/slurm/23.11/lib
+export SLURM_INCLUDE_DIR=/opt/slurm/25.05/include
+export SLURM_LIB_DIR=/opt/slurm/25.05/lib
 ```
 
 Then you can proceed to install pyslurm, for example by cloning the Repository:
@@ -38,12 +38,20 @@ Then you can proceed to install pyslurm, for example by cloning the Repository:
 ```shell
 git clone https://github.com/PySlurm/pyslurm.git && cd pyslurm
 scripts/build.sh
-
-# Or simply with pip
-pip install .
 ```
 
-Also see `python setup.py --help`
+Also see `scripts/build.sh -h`. You can specify multiple cores for building
+with the `-j` option (also possible to set via environment variable `PYSLURM_BUILD_JOBS`):
+
+```shell
+scripts/build.sh -j4
+```
+
+Or simply with `pip` directly:
+
+```shell
+pip install .
+```
 
 ## Contributors
 

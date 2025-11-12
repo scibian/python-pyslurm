@@ -21,9 +21,9 @@
 #
 # cython: c_string_type=unicode, c_string_encoding=default
 # cython: language_level=3
-"""Custom Collection utilities""" 
+"""Custom Collection utilities"""
 
-from pyslurm.settings import LOCAL_CLUSTER
+from pyslurm import settings
 import json
 from typing import Union, Any
 
@@ -158,7 +158,7 @@ class ItemsView(BaseView):
         """
         return MCItemsView(self._mcm)
 
-    
+
 class MCItemsView(BaseView):
     """A Multi-Cluster Items View.
 
@@ -193,6 +193,7 @@ cdef class MultiClusterMap:
         self._key_type = key_type
         self._val_type = val_type
         self._id_attr = id_attr
+        self._cluster = settings.LOCAL_CLUSTER
         if init_data:
             self._init_data(data)
 
@@ -201,15 +202,15 @@ cdef class MultiClusterMap:
             for item in data:
                 if isinstance(item, self._key_type):
                     item = self._val_type(item)
-                    if LOCAL_CLUSTER not in self.data:
-                        self.data[LOCAL_CLUSTER] = {}
+                    if self._cluster not in self.data:
+                        self.data[self._cluster] = {}
 
-                self.data[LOCAL_CLUSTER].update({self._item_id(item): item})
+                self.data[self._cluster].update({self._item_id(item): item})
         elif isinstance(data, str):
             itemlist = data.split(",")
             items = {self._key_type(item):self._val_type(item)
                      for item in itemlist}
-            self.data[LOCAL_CLUSTER] = items
+            self.data[self._cluster] = items
         elif isinstance(data, dict):
             self.update(data)
         elif data is not None:
@@ -223,8 +224,8 @@ cdef class MultiClusterMap:
 
     def _get_cluster(self):
         cluster = None
-        if not self.data or LOCAL_CLUSTER in self.data:
-            cluster = LOCAL_CLUSTER
+        if not self.data or self._cluster in self.data:
+            cluster = self._cluster
         else:
             try:
                 cluster = next(iter(self.keys()))
@@ -240,7 +241,7 @@ cdef class MultiClusterMap:
             cluster, key = item
         else:
             cluster, key = self._get_cluster(), item
-            
+
         return cluster, key
 
     def _check_val_type(self, item):
@@ -259,7 +260,7 @@ cdef class MultiClusterMap:
                 try:
                     cluster = self._get_cluster()
                 except KeyError:
-                    cluster = LOCAL_CLUSTER
+                    cluster = self._cluster
 
                 if not cluster in self.data:
                     self.data[cluster] = {}
@@ -394,7 +395,7 @@ cdef class MultiClusterMap:
         according to `next(iter(self.keys()))` will be used.
 
         Examples:
-            Get a Job from the LOCAL_CLUSTER
+            Get a Job from the local Cluster.
 
             >>> job_id = 1
             >>> job = data.get(job_id)
@@ -450,12 +451,18 @@ cdef class MultiClusterMap:
         if not self.data:
             return '{}'
 
+        return json.dumps(self.to_dict(multi_cluster=multi_cluster))
+
+    def to_dict(self, multi_cluster=False):
+        if not self.data:
+            return {}
+
         data = multi_dict_recursive(self)
         if multi_cluster:
-            return json.dumps(data)
+            return data
         else:
             cluster = self._get_cluster()
-            return json.dumps(data[cluster])
+            return data[cluster]
 
     def keys(self):
         """Return a View of all the Keys in this collection
@@ -476,7 +483,7 @@ cdef class MultiClusterMap:
             ...     print(cluster, key)
         """
         return KeysView(self)
-                
+
     def items(self):
         """Return a View of all the Values in this collection
 
@@ -556,12 +563,12 @@ cdef class MultiClusterMap:
         item = self.get(key, default=default)
         if item is default or item == default:
             return default
-    
+
         cluster = item.cluster
         del self.data[cluster][key]
         if not self.data[cluster]:
             del self.data[cluster]
-        
+
         return item
 
     def update(self, data={}, **kwargs):
@@ -591,7 +598,7 @@ def multi_reload(cur, frozen=True):
         for cluster, item in new.keys().with_cluster():
             if (cluster, item) not in cur.keys().with_cluster():
                 cur[cluster][item] = new[cluster][item]
-                
+
     return cur
 
 
