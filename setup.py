@@ -3,43 +3,45 @@
 
 import os
 import sys
-import textwrap
-import shutil
 from pathlib import Path
-from setuptools import setup, Extension
+from setuptools import setup, Extension, find_packages
 
 try:
     from packaging.version import Version
 except ImportError:
     from setuptools._vendor.packaging.version import Version
 
-
-CYTHON_VERSION_MIN = "0.29.36" # Keep in sync with pyproject.toml
-SLURM_LIB = "libslurm"
 TOPDIR = Path(__file__).parent
-PYTHON_MIN_REQUIRED = (3, 6)
 
 
 def get_version():
-    with (TOPDIR / "pyslurm/__version__.py").open() as f:
+    with (TOPDIR / "pyslurm/version.py").open() as f:
         for line in f.read().splitlines():
-            if line.startswith("__version__"):
-               return Version(line.split('"')[1])
+            if not line.startswith("__version__"):
+                continue
+
+            V = Version(line.split('"')[1])
+            if not hasattr(V, "major") or not hasattr(V, "minor"):
+                (V.major, V.minor) = V._version.release[0:2]
+
+            return V
     raise RuntimeError("Cannot get version string.")
 
 
+CYTHON_VERSION_MIN = "0.29.37" # Keep in sync with pyproject.toml
+SLURM_LIB = "libslurmfull"
 VERSION = get_version()
 SLURM_VERSION = f"{VERSION.major}.{VERSION.minor}"
+DOCUMENTATION_URL = f"https://pyslurm.github.io/{SLURM_VERSION}"
+GITHUB_URL = "https://github.com/PySlurm/pyslurm"
 
 
 def homepage(*args):
-    url = f"https://pyslurm.github.io/{SLURM_VERSION}"
-    return "/".join([url] + list(args))
+    return "/".join([DOCUMENTATION_URL] + list(args))
 
 
 def github(*args):
-    url = "https://github.com/PySlurm/pyslurm"
-    return "/".join([url] + list(args))
+    return "/".join([GITHUB_URL] + list(args))
 
 
 metadata = dict(
@@ -49,16 +51,17 @@ metadata = dict(
     description="Python Interface for Slurm",
     long_description=(TOPDIR / "README.md").read_text(encoding="utf-8"),
     long_description_content_type="text/markdown",
-    author="Mark Roberts, Giovanni Torres, et al.",
-    author_email="pyslurm@googlegroups.com",
-    url=homepage(),
+    author="Mark Roberts, Giovanni Torres, Toni Harzendorf, et al.",
+    maintainer="Toni Harzendorf",
+    maintainer_email="toni.harzendorf@gmail.com",
     platforms=["Linux"],
+    url=homepage(),
     keywords=[
-        "HPC"
-        "Batch Scheduler"
-        "Resource Manager"
-        "Slurm"
-        "Cython"
+        "HPC",
+        "Batch Scheduler",
+        "Resource Manager",
+        "Slurm",
+        "Cython",
     ],
     classifiers=[
         "Development Status :: 5 - Production/Stable",
@@ -83,24 +86,27 @@ metadata = dict(
         "Topic :: System :: Distributed Computing",
     ],
     project_urls={
-        "Source Code"   : github(),
-        "Bug Tracker"   : github("issues"),
+        "Homepage"      : github(),
+        "Repository"    : github(),
+        "Issues"        : github("issues"),
         "Discussions"   : github("discussions"),
         "Documentation" : homepage("reference"),
         "Changelog"     : homepage("changelog")
     },
-    python_requires=f">={'.'.join(str(i) for i in PYTHON_MIN_REQUIRED)}",
+    python_requires=">=3.6",
+    packages=find_packages(
+        include=['pyslurm*'],
+    ),
+    include_package_data=True,
 )
-
-if sys.version_info[:2] < PYTHON_MIN_REQUIRED:
-    raise RuntimeError(f"Python {PYTHON_MIN_REQUIRED} or higher is required.")
-
 
 class SlurmConfig():
 
     def __init__(self):
         # Assume some defaults here
         self._lib_dir = Path("/usr/lib64")
+        self._lib = None
+        self._lib_dir_search_paths = []
         self.inc_dir = Path("/usr/include")
         self._version = None
 
@@ -110,13 +116,17 @@ class SlurmConfig():
             raise RuntimeError(f"Cannot locate {name} in {self.inc_full_dir}")
         return hdr
 
-    def _find_lib(self, lib_dir):
+    def _search_lib(self, lib_dir):
+        if self._lib:
+            return
+
         lib = lib_dir / f"{SLURM_LIB}.so"
         if not lib.exists():
-            raise RuntimeError(f"Cannot locate Slurm library in {lib_dir}")
-
-        print(f"Found {SLURM_LIB} library in {lib}")
-        return lib_dir
+            self._lib_dir_search_paths.append(str(lib_dir))
+        else:
+            print(f"Found slurm library: {lib}")
+            self._lib = lib
+            self._lib_dir = lib_dir
 
     @property
     def lib_dir(self):
@@ -124,11 +134,14 @@ class SlurmConfig():
 
     @lib_dir.setter
     def lib_dir(self, path):
-        lib_dir = Path(path)
-        if SLURM_LIB == "libslurmfull":
-            lib_dir /= "slurm"
+        self._search_lib(path)
+        self._search_lib(path / "slurm")
+        self._search_lib(path / "slurm-wlm")
 
-        self._lib_dir = self._find_lib(lib_dir)
+        if not self._lib:
+            searched = "\n- ".join(self._lib_dir_search_paths)
+            raise RuntimeError("Cannot locate Slurm library. Searched paths: "
+                               f"\n- {searched}")
 
     @property
     def inc_full_dir(self):
@@ -169,27 +182,6 @@ class SlurmConfig():
 slurm = SlurmConfig()
 
 
-def usage():
-    print(
-        textwrap.dedent(
-        f"""
-        PySlurm Help
-        ------------
-            --slurm-lib=PATH    Where to look for the Slurm library (default=/usr/lib64)
-                                You can also instead use the environment
-                                variable SLURM_LIB_DIR.
-
-            --slurm-inc=PATH    Where to look for slurm.h, slurm_errno.h
-                                and slurmdb.h (default=/usr/include)
-                                You can also instead use the environment
-                                variable SLURM_INCLUDE_DIR.
-
-        Homepage: {homepage()}
-        """
-        )
-    )
-
-
 def find_files_with_extension(path, extensions):
     files = [p
              for p in Path(path).glob("**/*")
@@ -224,23 +216,8 @@ def get_extensions():
 
 
 def parse_slurm_args():
-    # Check first if necessary paths to Slurm header and lib were provided via
-    # env var
-    lib_dir = os.getenv("SLURM_LIB_DIR", slurm.lib_dir)
-    inc_dir = os.getenv("SLURM_INCLUDE_DIR", slurm.inc_dir)
-
-    # If these are provided, they take precedence over the env vars
-    args = sys.argv[1:]
-    for arg in args:
-        if arg.find("--slurm-lib=") == 0:
-            lib_dir = arg.split("=")[1]
-            sys.argv.remove(arg)
-        if arg.find("--slurm-inc=") == 0:
-            inc_dir = arg.split("=")[1]
-            sys.argv.remove(arg)
-
-    slurm.inc_dir = Path(inc_dir)
-    slurm.lib_dir = Path(lib_dir)
+    slurm.lib_dir = Path(os.getenv("SLURM_LIB_DIR", slurm.lib_dir))
+    slurm.inc_dir = Path(os.getenv("SLURM_INCLUDE_DIR", slurm.inc_dir))
 
 
 def cythongen():
@@ -258,7 +235,8 @@ def cythongen():
             raise RuntimeError(msg)
 
     cleanup_build()
-    metadata["ext_modules"] = cythonize(get_extensions())
+    nthreads = os.getenv("PYSLURM_BUILD_JOBS", 1)
+    metadata["ext_modules"] = cythonize(get_extensions(), nthreads=int(nthreads))
 
 
 def parse_setuppy_commands():
@@ -266,29 +244,16 @@ def parse_setuppy_commands():
     if not args:
         return False
 
-    # Prepend PySlurm help text when passing --help | -h
-    if "--help" in args or "-h" in args:
-        usage()
-        print(
-            textwrap.dedent(
-            """
-            Setuptools Help
-            --------------
-            """
-            )
-        )
-        return False
-
-    # Clean up all build objects
     if "clean" in args:
         cleanup_build()
         return False
 
     build_cmd = ('build', 'build_ext', 'build_py', 'build_clib',
-        'build_scripts', 'bdist_wheel', 'build_src', 'bdist_egg', 'develop')
+                 'build_scripts', 'bdist_wheel', 'build_src', 'bdist_egg',
+                 'develop', 'editable_wheel')
 
     for cmd in build_cmd:
-        if cmd in args:
+        if cmd == args[0]:
             return True
 
     return False

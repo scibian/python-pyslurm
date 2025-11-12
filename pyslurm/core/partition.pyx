@@ -2,7 +2,7 @@
 # partition.pyx - interface to work with partitions in slurm
 #########################################################################
 # Copyright (C) 2023 Toni Harzendorf <toni.harzendorf@gmail.com>
-# Copyright (C) 2023 PySlurm Developers
+# Copyright (C) 2025 PySlurm Developers
 #
 # This file is part of PySlurm
 #
@@ -30,7 +30,9 @@ from pyslurm.utils.uint import *
 from pyslurm.core.error import RPCError, verify_rpc
 from pyslurm.utils.ctime import timestamp_to_date, _raw_time
 from pyslurm.constants import UNLIMITED
-from pyslurm.settings import LOCAL_CLUSTER
+from pyslurm import settings
+from pyslurm.core import slurmctld
+from pyslurm.core.slurmctld.config import _get_memory
 from pyslurm import xcollections
 from pyslurm.utils.helpers import (
     uid_to_name,
@@ -70,14 +72,13 @@ cdef class Partitions(MultiClusterMap):
             (pyslurm.Partitions): Collection of Partition objects.
 
         Raises:
-            RPCError: When getting all the Partitions from the slurmctld
-                failed.
+            (pyslurm.RPCError): When getting all the Partitions from the
+                slurmctld failed.
         """
         cdef:
             Partitions partitions = Partitions()
             int flags = slurm.SHOW_ALL
             Partition partition
-            slurmctld.Config slurm_conf
             int power_save_enabled = 0
 
         verify_rpc(slurm_load_partitions(0, &partitions.info, flags))
@@ -121,7 +122,8 @@ cdef class Partitions(MultiClusterMap):
             (pyslurm.Partitions): Returns self
 
         Raises:
-            RPCError: When getting the Partitions from the slurmctld failed.
+            (pyslurm.RPCError): When getting the Partitions from the slurmctld
+                failed.
         """
         return xcollections.multi_reload(self)
 
@@ -135,7 +137,7 @@ cdef class Partitions(MultiClusterMap):
                 see which properties can be modified.
 
         Raises:
-            RPCError: When updating at least one Partition failed.
+            (pyslurm.RPCError): When updating at least one Partition failed.
 
         Examples:
             >>> import pyslurm
@@ -166,7 +168,7 @@ cdef class Partition:
     def __init__(self, name=None, **kwargs):
         self._alloc_impl()
         self.name = name
-        self.cluster = LOCAL_CLUSTER
+        self.cluster = settings.LOCAL_CLUSTER
         for k, v in kwargs.items():
             setattr(self, k, v)
 
@@ -192,7 +194,7 @@ cdef class Partition:
     cdef Partition from_ptr(partition_info_t *in_ptr):
         cdef Partition wrap = Partition.__new__(Partition)
         wrap._alloc_impl()
-        wrap.cluster = LOCAL_CLUSTER
+        wrap.cluster = settings.LOCAL_CLUSTER
         memcpy(wrap.ptr, in_ptr, sizeof(partition_info_t))
         return wrap
 
@@ -230,8 +232,8 @@ cdef class Partition:
             (pyslurm.Partition): Returns a new Partition instance.
 
         Raises:
-            RPCError: If requesting the Partition information from the
-                slurmctld was not successful.
+            (pyslurm.RPCError): If requesting the Partition information from
+                the slurmctld was not successful.
 
         Examples:
             >>> import pyslurm
@@ -253,7 +255,7 @@ cdef class Partition:
                 instance object itself.
 
         Raises:
-            RPCError: If creating the Partition was not successful.
+            (pyslurm.RPCError): If creating the Partition was not successful.
 
         Examples:
             >>> import pyslurm
@@ -275,7 +277,7 @@ cdef class Partition:
                 see which properties can be modified.
 
         Raises:
-            RPCError: When updating the Partition was not successful.
+            (pyslurm.RPCError): When updating the Partition was not successful.
 
         Examples:
             >>> import pyslurm
@@ -296,7 +298,7 @@ cdef class Partition:
         Implements the slurm_delete_partition RPC.
 
         Raises:
-            RPCError: When deleting the Partition was not successful.
+            (pyslurm.RPCError): When deleting the Partition was not successful.
 
         Examples:
             >>> import pyslurm
@@ -601,39 +603,39 @@ cdef class Partition:
 
     @property
     def is_default(self):
-        return u16_parse_bool_flag(self.ptr.flags, slurm.PART_FLAG_DEFAULT)
+        return u32_parse_bool_flag(self.ptr.flags, slurm.PART_FLAG_DEFAULT)
 
     @is_default.setter
     def is_default(self, val):
-        u16_set_bool_flag(&self.ptr.flags, val,
+        u32_set_bool_flag(&self.ptr.flags, val,
                           slurm.PART_FLAG_DEFAULT, slurm.PART_FLAG_DEFAULT_CLR)
 
     @property
     def allow_root_jobs(self):
-        return u16_parse_bool_flag(self.ptr.flags, slurm.PART_FLAG_NO_ROOT)
+        return u32_parse_bool_flag(self.ptr.flags, slurm.PART_FLAG_NO_ROOT)
 
     @allow_root_jobs.setter
     def allow_root_jobs(self, val):
-        u16_set_bool_flag(&self.ptr.flags, val, slurm.PART_FLAG_NO_ROOT,
+        u32_set_bool_flag(&self.ptr.flags, val, slurm.PART_FLAG_NO_ROOT,
                           slurm.PART_FLAG_NO_ROOT_CLR)
 
     @property
     def is_user_exclusive(self):
-        return u16_parse_bool_flag(self.ptr.flags,
+        return u32_parse_bool_flag(self.ptr.flags,
                                    slurm.PART_FLAG_EXCLUSIVE_USER)
 
     @is_user_exclusive.setter
     def is_user_exclusive(self, val):
-        u16_set_bool_flag(&self.ptr.flags, val, slurm.PART_FLAG_EXCLUSIVE_USER,
+        u32_set_bool_flag(&self.ptr.flags, val, slurm.PART_FLAG_EXCLUSIVE_USER,
                           slurm.PART_FLAG_EXC_USER_CLR)
 
     @property
     def is_hidden(self):
-        return u16_parse_bool_flag(self.ptr.flags, slurm.PART_FLAG_HIDDEN)
+        return u32_parse_bool_flag(self.ptr.flags, slurm.PART_FLAG_HIDDEN)
 
     @is_hidden.setter
     def is_hidden(self, val):
-        u16_set_bool_flag(&self.ptr.flags, val,
+        u32_set_bool_flag(&self.ptr.flags, val,
                           slurm.PART_FLAG_HIDDEN, slurm.PART_FLAG_HIDDEN_CLR)
 
     @property
@@ -642,26 +644,35 @@ cdef class Partition:
 
     @least_loaded_nodes_scheduling.setter
     def least_loaded_nodes_scheduling(self, val):
-        u16_set_bool_flag(&self.ptr.flags, val, slurm.PART_FLAG_LLN,
+        u32_set_bool_flag(&self.ptr.flags, val, slurm.PART_FLAG_LLN,
                           slurm.PART_FLAG_LLN_CLR)
 
     @property
     def is_root_only(self):
-        return u16_parse_bool_flag(self.ptr.flags, slurm.PART_FLAG_ROOT_ONLY)
+        return u32_parse_bool_flag(self.ptr.flags, slurm.PART_FLAG_ROOT_ONLY)
 
     @is_root_only.setter
     def is_root_only(self, val):
-        u16_set_bool_flag(&self.ptr.flags, val, slurm.PART_FLAG_ROOT_ONLY,
+        u32_set_bool_flag(&self.ptr.flags, val, slurm.PART_FLAG_ROOT_ONLY,
                           slurm.PART_FLAG_ROOT_ONLY_CLR)
 
     @property
     def requires_reservation(self):
-        return u16_parse_bool_flag(self.ptr.flags, slurm.PART_FLAG_REQ_RESV)
+        return u32_parse_bool_flag(self.ptr.flags, slurm.PART_FLAG_REQ_RESV)
 
     @requires_reservation.setter
     def requires_reservation(self, val):
-        u16_set_bool_flag(&self.ptr.flags, val, slurm.PART_FLAG_REQ_RESV,
+        u32_set_bool_flag(&self.ptr.flags, val, slurm.PART_FLAG_REQ_RESV,
                           slurm.PART_FLAG_REQ_RESV_CLR)
+
+    @property
+    def power_down_on_idle(self):
+        return u32_parse_bool_flag(self.ptr.flags, slurm.PART_FLAG_PDOI)
+
+    @power_down_on_idle.setter
+    def power_down_on_idle(self, val):
+        u32_set_bool_flag(&self.ptr.flags, val, slurm.PART_FLAG_PDOI,
+                          slurm.PART_FLAG_PDOI_CLR)
 
     # TODO: tres_fmt_str
 
@@ -790,14 +801,14 @@ def _preempt_mode_str_to_int(mode):
     return pmode
 
 
-def _preempt_mode_int_to_str(mode, slurmctld.Config slurm_conf):
+def _preempt_mode_int_to_str(mode, slurm_conf):
     if mode == slurm.NO_VAL16:
         return slurm_conf.preempt_mode if slurm_conf else None
     else:
         return cstr.to_unicode(slurm_preempt_mode_string(mode))
 
 
-cdef _extract_job_default_item(typ, slurm.List job_defaults_list):
+cdef _extract_job_default_item(typ, list_t *job_defaults_list):
     cdef:
         job_defaults_t *default_item
         SlurmList job_def_list
@@ -822,21 +833,3 @@ cdef _concat_job_default_str(typ, val, char **job_defaults_str):
         current.update({typ : _val})
 
     cstr.from_dict(job_defaults_str, current)
-
-
-def _get_memory(value, per_cpu):
-    if value != slurm.NO_VAL64:
-        if value & slurm.MEM_PER_CPU and per_cpu:
-            if value == slurm.MEM_PER_CPU:
-                return UNLIMITED
-            return u64_parse(value & (~slurm.MEM_PER_CPU))
-
-        # For these values, Slurm interprets 0 as being equal to
-        # INFINITE/UNLIMITED
-        elif value == 0 and not per_cpu:
-            return UNLIMITED
-
-        elif not value & slurm.MEM_PER_CPU and not per_cpu:
-            return u64_parse(value)
-
-    return None

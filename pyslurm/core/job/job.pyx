@@ -34,7 +34,7 @@ from typing import Union
 from pyslurm.utils import cstr, ctime
 from pyslurm.utils.uint import *
 from pyslurm.core.job.util import *
-from pyslurm.settings import LOCAL_CLUSTER
+from pyslurm import settings
 from pyslurm import xcollections
 from pyslurm.core.error import (
     RPCError,
@@ -50,6 +50,7 @@ from pyslurm.utils.helpers import (
     _getpwall_to_dict,
     instance_to_dict,
     _get_exit_code,
+    cpu_freq_int_to_str,
 )
 
 
@@ -63,6 +64,7 @@ cdef class Jobs(MultiClusterMap):
 
     def __init__(self, jobs=None, frozen=False):
         self.frozen = frozen
+        self.stats = JobStatistics()
         super().__init__(data=jobs,
                          typ="Jobs",
                          val_type=Job,
@@ -88,7 +90,8 @@ cdef class Jobs(MultiClusterMap):
             (pyslurm.Jobs): A collection of Job objects.
 
         Raises:
-            RPCError: When getting all the Jobs from the slurmctld failed.
+            (pyslurm.RPCError): When getting all the Jobs from the slurmctld
+                failed.
 
         Examples:
             >>> import pyslurm
@@ -143,10 +146,11 @@ cdef class Jobs(MultiClusterMap):
         """Reload the information for jobs in a collection.
 
         Returns:
-            (pyslurm.Partitions): Returns self
+            (pyslurm.Jobs): Returns self
 
         Raises:
-            RPCError: When getting the Jobs from the slurmctld failed.
+            (pyslurm.RPCError): When getting the Jobs from the slurmctld
+                failed.
         """
         return xcollections.multi_reload(self, frozen=self.frozen)
 
@@ -161,14 +165,49 @@ cdef class Jobs(MultiClusterMap):
             Pending Jobs will be ignored, since they don't have any Steps yet.
 
         Raises:
-            RPCError: When retrieving the Job information for all the Steps
-                failed.
+            (pyslurm.RPCError): When retrieving the information for all the
+                Steps failed.
         """
         cdef dict steps = JobSteps.load_all()
         for job in self.values():
             jid = job.id
             if jid in steps:
                 job.steps = steps[jid]
+
+    def load_stats(self):
+        """Load realtime stats for this collection of Jobs.
+
+        This function additionally fills in the `stats` attribute for all Jobs
+        in the collection, and also populates its own `stats` attribute.
+        Implicitly calls `load_steps()`.
+
+        !!! note
+
+            Pending Jobs will be ignored, since they don't have any Stats yet.
+
+        Returns:
+            (pyslurm.db.JobStatistics): The statistics of this job collection.
+
+        Raises:
+            (pyslurm.RPCError): When retrieving the stats for all the Jobs
+                failed.
+
+        Examples:
+            >>> import pyslurm
+            >>> jobs = pyslurm.Jobs.load()
+            >>> stats = jobs.load_stats()
+            >>>
+            >>> # Print the CPU Time Used
+            >>> print(stats.total_cpu_time)
+        """
+        self.load_steps()
+        stats = JobStatistics()
+        for job in self.values():
+            job.load_stats()
+            stats.add(job.stats)
+
+        self.stats = stats
+        return self.stats
 
     @property
     def memory(self):
@@ -183,8 +222,8 @@ cdef class Jobs(MultiClusterMap):
         return xcollections.sum_property(self, Job.ntasks)
 
     @property
-    def cpu_time(self):
-        return xcollections.sum_property(self, Job.cpu_time)
+    def elapsed_cpu_time(self):
+        return xcollections.sum_property(self, Job.elapsed_cpu_time)
 
 
 cdef class Job:
@@ -197,8 +236,10 @@ cdef class Job:
         self.ptr.job_id = job_id
         self.passwd = {}
         self.groups = {}
-        cstr.fmalloc(&self.ptr.cluster, LOCAL_CLUSTER)
+        cstr.fmalloc(&self.ptr.cluster, settings.LOCAL_CLUSTER)
         self.steps = JobSteps()
+        self.stats = JobStatistics()
+        self.pids = {}
 
     def _alloc_impl(self):
         if not self.ptr:
@@ -225,7 +266,7 @@ cdef class Job:
         !!! note
 
             If the Job is not pending, the related Job steps will also be
-            loaded.
+            loaded. Job statistics are however not loaded automatically.
 
         Args:
             job_id (int):
@@ -235,8 +276,8 @@ cdef class Job:
             (pyslurm.Job): Returns a new Job instance
 
         Raises:
-            RPCError: If requesting the Job information from the slurmctld was
-                not successful.
+            (pyslurm.RPCError): If requesting the Job information from the
+                slurmctld was not successful.
 
         Examples:
             >>> import pyslurm
@@ -276,6 +317,8 @@ cdef class Job:
         wrap.passwd = {}
         wrap.groups = {}
         wrap.steps = JobSteps.__new__(JobSteps)
+        wrap.stats = JobStatistics()
+        wrap.pids = {}
         memcpy(wrap.ptr, in_ptr, sizeof(slurm_job_info_t))
         return wrap
 
@@ -297,6 +340,8 @@ cdef class Job:
         """
         cdef dict out = instance_to_dict(self)
         out["steps"] = self.steps.to_dict()
+        out["stats"] = self.stats.to_dict()
+        out["pids"] = self.pids
         return out
 
     def send_signal(self, signal, steps="children", hurry=False):
@@ -320,7 +365,7 @@ cdef class Job:
                 value is False.
 
         Raises:
-            RPCError: When sending the signal was not successful.
+            (pyslurm.RPCError): When sending the signal was not successful.
 
         Examples:
             Specifying the signal as a string:
@@ -360,7 +405,7 @@ cdef class Job:
         Implements the slurm_kill_job RPC.
 
         Raises:
-            RPCError: When cancelling the Job was not successful.
+            (pyslurm.RPCError): When cancelling the Job was not successful.
 
         Examples:
             >>> import pyslurm
@@ -374,7 +419,7 @@ cdef class Job:
         Implements the slurm_suspend RPC.
 
         Raises:
-            RPCError: When suspending the Job was not successful.
+            (pyslurm.RPCError): When suspending the Job was not successful.
 
         Examples:
             >>> import pyslurm
@@ -393,7 +438,7 @@ cdef class Job:
         Implements the slurm_resume RPC.
 
         Raises:
-            RPCError: When unsuspending the Job was not successful.
+            (pyslurm.RPCError): When unsuspending the Job was not successful.
 
         Examples:
             >>> import pyslurm
@@ -413,7 +458,7 @@ cdef class Job:
                 modifications that should be done on the Job.
 
         Raises:
-            RPCError: When updating the Job was not successful.
+            (pyslurm.RPCError): When updating the Job was not successful.
 
         Examples:
             >>> import pyslurm
@@ -438,7 +483,7 @@ cdef class Job:
                 User will also be able to release the job.
 
         Raises:
-            RPCError: When holding the Job was not successful.
+            (pyslurm.RPCError): When holding the Job was not successful.
 
         Examples:
             >>> import pyslurm
@@ -460,7 +505,7 @@ cdef class Job:
         """Release a currently held Job, allowing it to be scheduled again.
 
         Raises:
-            RPCError: When releasing a held Job was not successful.
+            (pyslurm.RPCError): When releasing a held Job was not successful.
 
         Examples:
             >>> import pyslurm
@@ -479,7 +524,7 @@ cdef class Job:
                 Default for this is `False`, so it will not be held.
 
         Raises:
-            RPCError: When requeing the Job was not successful.
+            (pyslurm.RPCError): When requeing the Job was not successful.
 
         Examples:
             >>> import pyslurm
@@ -508,13 +553,58 @@ cdef class Job:
                 The message that should be sent.
 
         Raises:
-            RPCError: When sending the message to the Job was not successful.
+            (pyslurm.RPCError): When sending the message to the Job was not
+                successful.
 
         Examples:
             >>> import pyslurm
             >>> pyslurm.Job(9999).notify("Hello Friends!")
         """
         verify_rpc(slurm_notify_job(self.id, msg))
+
+    def load_stats(self):
+        """Load realtime statistics for a Job and its steps.
+
+        Calling this function returns the Job statistics, and additionally
+        populates the `stats` and `pids` attribute of the instance.
+
+        Returns:
+            (pyslurm.db.JobStatistics): The statistics of the job.
+
+        Raises:
+            (pyslurm.RPCError): When receiving the Statistics was not
+            successful.
+
+        Examples:
+            >>> import pyslurm
+            >>> job = pyslurm.Job.load(9999)
+            >>> stats = job.load_stats()
+            >>>
+            >>> # Print the CPU Time Used
+            >>> print(stats.total_cpu_time)
+            >>>
+            >>> # Print the Process-IDs for the whole Job, organized by hostname
+            >>> print(job.pids)
+        """
+        if not self.steps:
+            job = Job.load(self.id)
+            self.steps = job.steps
+
+        all_pids = {}
+        for step in self.steps.values():
+            step.load_stats()
+            self.stats._sum_steps(step.stats)
+
+            for node, pids in step.pids.items():
+                if node not in all_pids:
+                    all_pids[node] = []
+
+                all_pids[node].extend(pids)
+
+        self.stats.elapsed_cpu_time = self.run_time * self.cpus
+
+        self.pids = all_pids
+        return self.stats
 
     def get_batch_script(self):
         """Return the content of the script for a Batch-Job.
@@ -523,8 +613,8 @@ cdef class Job:
             (str): The content of the batch script.
 
         Raises:
-            RPCError: When retrieving the Batch-Script for the Job was not
-                successful.
+            (pyslurm.RPCError): When retrieving the Batch-Script for the Job
+                was not successful.
 
         Examples:
             >>> import pyslurm
@@ -624,7 +714,7 @@ cdef class Job:
         if self.ptr.nice == slurm.NO_VAL:
             return None
 
-        return self.ptr.nice - slurm.NICE_OFFSET
+        return int(self.ptr.nice) - slurm.NICE_OFFSET
 
     @property
     def qos(self):
@@ -985,6 +1075,13 @@ cdef class Job:
     #       return cstr.to_unicode(self.ptr.tres_freq)
 
     @property
+    def billable_tres(self):
+        if self.ptr.billable_tres == <double>slurm.NO_VAL:
+            return 0.0
+
+        return self.ptr.billable_tres
+
+    @property
     def wckey(self):
         return cstr.to_unicode(self.ptr.wckey)
 
@@ -1141,6 +1238,10 @@ cdef class Job:
         return cstr.to_gres_dict(self.ptr.tres_per_node)
 
     @property
+    def tres_per_task(self):
+        return cstr.to_dict(self.ptr.tres_per_task)
+
+    @property
     def profile_types(self):
         return acctg_profile_int_to_list(self.ptr.profile)
 
@@ -1179,18 +1280,16 @@ cdef class Job:
         return cstr.to_unicode(self.ptr.cronspec)
 
     @property
-    def cpu_time(self):
+    def elapsed_cpu_time(self):
         return self.cpus * self.run_time
 
     @property
-    def pending_time(self):
-        # TODO
-        return None
+    def run_time_remaining(self):
+        limit = self.time_limit
+        if limit is None:
+            return None
 
-    @property
-    def run_time_left(self):
-        # TODO
-        return None
+        return (self.time_limit*60) - self.run_time
 
     def get_resource_layout_per_node(self):
         """Retrieve the resource layout of this Job on each node.
