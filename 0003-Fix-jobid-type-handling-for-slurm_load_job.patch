@@ -1,0 +1,28 @@
+From c3ab9151abee542dfc3a2f7d21eb4c2ac546b15b Mon Sep 17 00:00:00 2001
+From: Farid CHABANE <farid-externe.chabane@edf.fr>
+Date: Thu, 13 Nov 2025 09:42:09 +0100
+Subject: [PATCH 3/3] Fix jobid type handling for slurm_load_job
+
+---
+ pyslurm/deprecated.pyx | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/pyslurm/deprecated.pyx b/pyslurm/deprecated.pyx
+index 9236fac..a16edaf 100644
+--- a/pyslurm/deprecated.pyx
++++ b/pyslurm/deprecated.pyx
+@@ -998,7 +998,10 @@ cdef class job:
+         else:
+             jobid = jobid.encode("UTF-8")
+         # load the job which sets the self._job_ptr pointer
+-        rc = slurm.slurm_load_job(&self._job_ptr, jobid, self._ShowFlags)
++        try:
++            rc = slurm.slurm_load_job(&self._job_ptr, int(jobid), self._ShowFlags)
++        except Exception:
++            rc = slurm.slurm_load_job(&self._job_ptr, str(jobid).encode("UTF-8"), self._ShowFlags)
+ 
+         if rc != slurm.SLURM_SUCCESS:
+             apiError = slurm_get_errno()
+-- 
+2.30.2
+

@@ -1,20 +1,20 @@
 %define modname pyslurm
 Name:           python-pyslurm
-Version:        24.05.0
+Version:        25.05.0
 Release:        1%{?dist}.edf
 Summary:        A Python/Cython extension module to SLURM
 License:        GPL-2.0
 Group:          Development/Libraries/Python
 Url:            http://www.gingergeeks.co.uk/pyslurm
 Source0:        %{name}-%{version}.tar.gz
-Patch0:         0001-backport-cython-0.28.1.patch
-Patch1:         0002-cython-encoding_bug.patch
-Patch2:         0003-do-not-rely-on-package.version-major-attribute.patch
+Patch0:         0001-backport-cython-0.28.1-rhel8.patch
+Patch1:         0002-cython-encoding-bug.patch
+Patch2:         0003-Fix-jobid-type-handling-for-slurm_load_job.patch
 BuildRequires:  python3-Cython
 BuildRequires:  python3-devel
-BuildRequires:  slurm-devel >= 24.05.0
+BuildRequires:  slurm-devel >= 25.05.0
 BuildRequires:  python3-setuptools
-Requires:       slurm >= 24.05.0
+Requires:       slurm >= 25.05.0
 
 %description
 
@@ -54,6 +54,9 @@ python3 setup.py install --prefix=%{_prefix} --root=%{buildroot}
 %{python3_sitearch}/%{modname}-*-py%{python3_version}.egg-info
 
 %changelog
+* Fri Nov 21 2025 Farid CHABANE <farid-externe.chabane@.fr> 25.05.0-1.el8.edf
+- Upgrade to 25.05.0 version
+
 * Fri Jul 26 2024 Thomas HAMEL <thomas-t.hamel@edf.fr> 24.05.0-1.el8.edf
 - Upgrade to 24.05.0 version
 
