@@ -26,11 +26,13 @@ from pyslurm.utils cimport cstr, ctime
 from pyslurm.utils.uint cimport *
 from pyslurm.utils.ctime cimport time_t
 from pyslurm.db.stats cimport JobStatistics
+from pyslurm.db.tres cimport TrackableResources, GPU
 from libc.string cimport memcpy, memset
 from libc.stdint cimport uint8_t, uint16_t, uint32_t, uint64_t, int64_t
 from libc.stdlib cimport free
 from pyslurm.core.job.submission cimport JobSubmitDescription
 from pyslurm.core.job.step cimport JobSteps, JobStep
+from pyslurm.utils.helpers cimport init_job_step_id
 from pyslurm.xcollections cimport MultiClusterMap
 from pyslurm cimport slurm
 from pyslurm.slurm cimport (
@@ -61,6 +63,7 @@ from pyslurm.slurm cimport (
     slurm_update_job,
     slurm_notify_job,
     slurm_requeue,
+    slurm_step_id_t,
     xfree,
     try_xmalloc,
 )
@@ -204,6 +207,8 @@ cdef class Job:
             Name of the Partition the Job runs in.
         submit_host (str):
             Name of the Host this Job was submitted from.
+        submit_session_id (int):
+            ID of the session when the Job was submitted.
         batch_host (str):
             Name of the Host where the Batch-Script is executed.
         num_nodes (int):
@@ -234,9 +239,9 @@ cdef class Job:
             job. Also see 'constraints'
         federation_origin (str):
             Federation Origin
-        federation_siblings_active (int):
+        federation_siblings_active (list):
             Federation siblings active
-        federation_siblings_viable (int):
+        federation_siblings_viable (list):
             Federation siblings viable
         cpus (int):
             Total amount of CPUs the Job is using.
@@ -284,10 +289,16 @@ cdef class Job:
             Name of the reservation this Job uses.
         resource_sharing (str):
             Mode controlling how a job shares resources with others.
+        exclusive (pyslurm.JobExclusive):
+            Exclusive resource allocation mode of the Job.
+        oversubscribe (pyslurm.JobOversubscribe):
+            Whether the Job is willing to oversubscribe resources.
         requires_contiguous_nodes (bool):
             Whether the Job has allocated a set of contiguous nodes.
         licenses (list):
             List of licenses the Job needs.
+        allocated_licenses (list):
+            List of licenses the Job has allocated
         network (str):
             Network specification for the Job.
         command (str):
@@ -300,6 +311,14 @@ cdef class Job:
             An arbitrary comment set by the slurmctld for the Job.
         container (str):
             The container this Job uses.
+        container_id (str):
+            The OCI ID of the Container this Job uses.
+        container_type (str):
+            Container plugin type the Job uses.
+        memory_update_delay (int):
+            Delay in minutes before memory is auto-reduced.
+        memory_update_margin (int):
+            Margin in percent applied when memory is auto-reduced.
         comment (str):
             An arbitrary comment set for the Job.
         standard_input (str):
@@ -341,7 +360,7 @@ cdef class Job:
         array_tasks_parallel (int):
             Max number of array tasks allowed to run simultaneously.
         array_task_id (int):
-            Array Task ID of this Job if it is an Array-Job.
+            Array task index, including zero, or None if unset.
         array_tasks_waiting (str):
             Array Tasks that are still waiting.
         end_time (int):
@@ -360,8 +379,6 @@ cdef class Job:
             Amount of Memory per Node this Job has, in Mebibytes
         memory_per_gpu (int):
             Amount of Memory per GPU this Job has, in Mebibytes
-        gres_per_node (dict):
-            Generic Resources (e.g. GPU) this Job is using per Node.
         profile_types (list):
             Types for which detailed accounting data is collected.
         gres_binding (str):
@@ -370,6 +387,9 @@ cdef class Job:
             Task Sharing of a Generic Resource (e.g. GPU).
         kill_on_invalid_dependency (bool):
             Whether the Job should be killed on an invalid dependency.
+        kill_step_when_oom (bool):
+            Whether the whole Step should be killed when a single task is Out
+            of Memory.
         spreads_over_nodes (bool):
             Whether the Job should be spread over as many nodes as possible.
         is_cronjob (bool):
@@ -380,9 +400,49 @@ cdef class Job:
             Amount of CPU-Time used by the Job so far.
             This is the result of multiplying the run_time with the amount of
             cpus requested.
+        submit_line (str):
+            The sbatch command that was used to submit the Job.
         run_time_remaining (int):
             The amount of seconds the job has still left until hitting the
             `time_limit`.
+        extra (str):
+            Some additional information to the Job.
+        failed_node (str):
+            Name of the node that caused the Job to fail.
+        preferred_features (list):
+            A list of preferred features/constraints
+        gpus (dict[GPU]):
+            A mapping of GPUs the Job has requested or allocated.
+        gres (dict):
+            The Generic Resources the Job has either requested or allocated.
+        tres (pyslurm.db.TrackableResources):
+            The TRES the Job has either requested or allocated.
+        allocated_tres (pyslurm.db.TrackableResources):
+            TRES the Job has allocated when already running.
+            Will return `None` if it is still pending.
+        requested_tres (pyslurm.db.TrackableResources):
+            TRES the Job has requested.
+        tres_per_node (pyslurm.db.TrackableResources):
+            The TRES Per Node the Job has allocated/requested
+        tres_per_task (pyslurm.db.TrackableResources):
+            The TRES Per Task the Job has allocated/requested
+        tres_per_job (pyslurm.db.TrackableResources):
+            The TRES Per Job allocated/requested
+        tres_per_socket (pyslurm.db.TrackableResources):
+            The TRES Per Socket the Job has allocated/requested
+        reserved_ports (int):
+            Number of Ports reserved for communications.
+        selinux_context (str):
+            The SELinux Context for the Job.
+        segment_size (int):
+            When a block topology is used, this defines the size of the
+            segments that have been used to create the job allocation.
+        spread_segments (bool):
+            Whether segments should be spread.
+        consolidate_segments (bool):
+            Whether the segments should be consolidated.
+        slurm_protocol_version (int):
+            The Slurm Protocol Version used.
     """
     cdef:
         slurm_job_info_t *ptr

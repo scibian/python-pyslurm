@@ -342,7 +342,7 @@ cdef class MultiClusterMap:
         elif isinstance(other, dict):
             out = self.copy()
             for cluster, data in self._iter_clusters_dict(other):
-                out.data[cluster] = self.data[cluster] | data
+                out.data[cluster] = {**self.data[cluster], **data}
             return out
         return NotImplemented
 
@@ -354,7 +354,7 @@ cdef class MultiClusterMap:
         elif isinstance(other, dict):
             out = self.copy()
             for cluster, data in self._iter_clusters_dict(other):
-                out.data[cluster] = data | self.data[cluster]
+                out.data[cluster] = {**data, **self.data[cluster]}
             return out
         return NotImplemented
 
@@ -363,10 +363,10 @@ cdef class MultiClusterMap:
             for cluster in other.clusters():
                 if not cluster in self.data:
                     self.data[cluster] = {}
-                self.data[cluster] |= other.data[cluster]
+                self.data[cluster].update(other.data[cluster])
         else:
             for cluster, data in self._iter_clusters_dict(other):
-                self.data[cluster] |= data
+                self.data[cluster].update(data)
         return self
 
     def copy(self):
@@ -451,13 +451,13 @@ cdef class MultiClusterMap:
         if not self.data:
             return '{}'
 
-        return json.dumps(self.to_dict(multi_cluster=multi_cluster))
+        return json.dumps(self.to_dict(multi_cluster=multi_cluster, recursive=True))
 
-    def to_dict(self, multi_cluster=False):
+    def to_dict(self, multi_cluster=False, recursive=False):
         if not self.data:
             return {}
 
-        data = multi_dict_recursive(self)
+        data = multi_dict_recursive(self, recursive)
         if multi_cluster:
             return data
         else:
@@ -602,22 +602,24 @@ def multi_reload(cur, frozen=True):
     return cur
 
 
-def dict_recursive(collection):
+# TODO: fix this function name to be less bad
+def dict_recursive(collection, recursive = False):
     cdef dict out = {}
     for item_id, item in collection.items():
         if hasattr(item, "to_dict"):
-            out[item_id] = item.to_dict()
+            out[item_id] = item.to_dict(recursive=recursive)
     return out
 
 
 def to_json(collection):
-    return json.dumps(dict_recursive(collection))
+    return json.dumps(dict_recursive(collection), recursive=True)
 
 
-def multi_dict_recursive(collection):
+# TODO: fix this function name to be less bad
+def multi_dict_recursive(collection, recursive = False):
     cdef dict out = collection.data.copy()
     for cluster, data in collection.data.items():
-        out[cluster] = dict_recursive(data)
+        out[cluster] = dict_recursive(data, recursive)
     return out
 
 

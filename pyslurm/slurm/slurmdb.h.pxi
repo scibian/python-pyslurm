@@ -9,7 +9,7 @@
 # * C-Macros are listed with their appropriate uint type
 # * Any definitions that cannot be translated are not included in this file
 #
-# Generated on 2025-09-28T15:03:24.516012
+# Generated on 2026-08-20T15:33:57.315057
 #
 # The Original Copyright notice from slurmdb.h has been included
 # below:
@@ -55,6 +55,7 @@ cdef extern from "slurm/slurmdb.h":
     uint32_t SLURMDB_RES_FLAG_ADD
     uint32_t SLURMDB_RES_FLAG_REMOVE
     uint8_t SLURMDB_RES_FLAG_ABSOLUTE
+    uint8_t SLURMDB_RES_FLAG_SHARED_POOL
     uint32_t FEDERATION_FLAG_BASE
     uint32_t FEDERATION_FLAG_NOTSET
     uint32_t FEDERATION_FLAG_ADD
@@ -70,6 +71,7 @@ cdef extern from "slurm/slurmdb.h":
     uint8_t SLURMDB_JOB_FLAG_SCHED
     uint8_t SLURMDB_JOB_FLAG_BACKFILL
     uint8_t SLURMDB_JOB_FLAG_START_R
+    uint8_t SLURMDB_JOB_FLAG_ALTERED
     uint8_t JOBCOND_FLAG_DUP
     uint8_t JOBCOND_FLAG_NO_STEP
     uint8_t JOBCOND_FLAG_NO_TRUNC
@@ -102,6 +104,10 @@ cdef extern from "slurm/slurmdb.h":
     uint8_t DB_CONN_FLAG_CLUSTER_DEL
     uint8_t DB_CONN_FLAG_ROLLBACK
     uint8_t DB_CONN_FLAG_FEDUPDATE
+    uint8_t DEFAULT_SLURMDBD_KEEPALIVE_INTERVAL
+    uint8_t DEFAULT_SLURMDBD_KEEPALIVE_PROBES
+    uint8_t DEFAULT_SLURMDBD_KEEPALIVE_TIME
+    uint16_t DEFAULT_SLURMDBD_MAX_PURGE_LIMIT
     uint8_t COORD_SET_INDIRECT
     uint8_t COORD_SET_DIRECT
     uint8_t COORD_SET_BY_ACCT
@@ -195,7 +201,6 @@ cdef extern from "slurm/slurmdb.h":
         QOS_FLAG_NOTSET
         QOS_FLAG_ADD
         QOS_FLAG_REMOVE
-        QOS_FLAG_INVALID
 
     cdef enum cluster_fed_states:
         CLUSTER_FED_STATE_NA
@@ -209,7 +214,6 @@ cdef extern from "slurm/slurmdb.h":
         CLUSTER_FLAG_MULTSD
         CLUSTER_FLAG_FED
         CLUSTER_FLAG_EXT
-        CLUSTER_FLAG_INVALID
 
     ctypedef enum slurmdb_assoc_flags_t:
         ASSOC_FLAG_NONE
@@ -220,13 +224,56 @@ cdef extern from "slurm/slurmdb.h":
         ASSOC_FLAG_BASE
         ASSOC_FLAG_USER_COORD
         ASSOC_FLAG_BLOCK_ADD
-        ASSOC_FLAG_INVALID
+
+    cdef enum dbd_conf_flag:
+        DBD_CONF_FLAG_ALLOW_NO_DEF_ACCT
+        DBD_CONF_FLAG_ALL_RES_ABS
+        DBD_CONF_FLAG_DISABLE_COORD_DBD
+        DBD_CONF_FLAG_GET_DBVER
+        DBD_CONF_FLAG_DISABLE_ARCHIVE_COMMANDS
+        DBD_CONF_FLAG_DISABLE_ROLLUPS
+
+    ctypedef struct slurmdbd_conf_t:
+        char* archive_dir
+        char* archive_script
+        uint16_t commit_delay
+        char* dbd_addr
+        char* dbd_backup
+        char* dbd_host
+        uint16_t dbd_port
+        uint16_t debug_level
+        char* default_qos
+        uint32_t flags
+        char* log_file
+        uint32_t max_purge_limit
+        uint32_t max_time_range
+        char* parameters
+        uint16_t persist_conn_rc_flags
+        char* pid_file
+        uint32_t purge_event
+        uint32_t purge_job
+        uint32_t purge_resv
+        uint32_t purge_step
+        uint32_t purge_suspend
+        uint32_t purge_txn
+        uint32_t purge_usage
+        uint32_t purge_jobscript
+        uint32_t purge_jobenv
+        char* storage_loc
+        char* storage_pass_script
+        char* storage_user
+        uint16_t syslog_debug
+        uint16_t track_wckey
+        uint16_t track_ctld
+
+    void slurmdbd_free_conf(slurmdbd_conf_t* conf)
 
     ctypedef struct slurmdb_tres_rec_t:
         uint64_t alloc_secs
         uint32_t rec_count
         uint64_t count
         uint32_t id
+        char modifier
         char* name
         char* type
 
@@ -302,7 +349,6 @@ cdef extern from "slurm/slurmdb.h":
         SLURMDB_ACCT_FLAG_USER_COORD_NO
         SLURMDB_ACCT_FLAG_BASE
         SLURMDB_ACCT_FLAG_USER_COORD
-        SLURMDB_ACCT_FLAG_INVALID
 
     ctypedef struct slurmdb_account_cond_t:
         slurmdb_assoc_cond_t* assoc_cond
@@ -336,6 +382,8 @@ cdef extern from "slurm/slurmdb.h":
         uint32_t purge_suspend
         uint32_t purge_txn
         uint32_t purge_usage
+        uint32_t purge_jobscript
+        uint32_t purge_jobenv
 
     ctypedef struct slurmdb_archive_rec_t:
         char* archive_file
@@ -400,6 +448,7 @@ cdef extern from "slurm/slurmdb.h":
         uint32_t shares_raw
         uint32_t uid
         slurmdb_assoc_usage_t* usage
+        slurmdb_assoc_usage_t* usage_het
         char* user
         slurmdb_user_rec_t* user_rec
 
@@ -578,6 +627,7 @@ cdef extern from "slurm/slurmdb.h":
         time_t eligible
         time_t end
         char* env
+        char* exclusive
         uint32_t exitcode
         char* extra
         char* failed_node
@@ -592,6 +642,7 @@ cdef extern from "slurm/slurmdb.h":
         char* licenses
         char* mcs_label
         char* nodes
+        char* oversubscribe
         char* partition
         uint32_t priority
         uint32_t qosid
@@ -606,6 +657,7 @@ cdef extern from "slurm/slurmdb.h":
         char* script
         uint16_t segment_size
         uint32_t show_full
+        uint64_t sluid
         time_t start
         uint32_t state
         uint32_t state_reason_prev
@@ -699,6 +751,7 @@ cdef extern from "slurm/slurmdb.h":
         uint32_t priority
         uint64_t* relative_tres_cnt
         slurmdb_qos_usage_t* usage
+        slurmdb_qos_usage_t* usage_het
         double usage_factor
         double usage_thres
 
@@ -858,6 +911,7 @@ cdef extern from "slurm/slurmdb.h":
         list_t* assoc_list
         slurmdb_bf_usage_t* bf_usage
         list_t* coord_accts
+        uint32_t def_qos_id
         char* default_acct
         char* default_wckey
         uint32_t flags
@@ -961,11 +1015,11 @@ cdef extern from "slurm/slurmdb.h":
 
     ctypedef struct slurmdb_rollup_stats_t:
         char* cluster_name
-        uint16_t count[4]
-        time_t timestamp[4]
-        uint64_t time_last[4]
-        uint64_t time_max[4]
-        uint64_t time_total[4]
+        uint16_t count[3]
+        time_t timestamp[3]
+        uint64_t time_last[3]
+        uint64_t time_max[3]
+        uint64_t time_total[3]
 
     ctypedef struct slurmdb_rpc_obj_t:
         uint32_t cnt
@@ -1066,7 +1120,9 @@ cdef extern from "slurm/slurmdb.h":
 
     int slurmdb_get_stats(void* db_conn, slurmdb_stats_rec_t** stats_pptr)
 
-    list_t* slurmdb_config_get(void* db_conn)
+    list_t* slurmdb_config_get_keypairs(const slurmdbd_conf_t* slurmdbd_conf)
+
+    int slurmdb_config_get(void* db_conn, slurmdbd_conf_t** slurmdbd_conf_ptr)
 
     list_t* slurmdb_events_get(void* db_conn, slurmdb_event_cond_t* event_cond)
 

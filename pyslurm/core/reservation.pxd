@@ -24,7 +24,6 @@
 
 from libc.string cimport memcpy, memset
 from libc.stdint cimport uint8_t, uint16_t, uint32_t, uint64_t
-from libc.stdlib cimport free
 from pyslurm cimport slurm
 from pyslurm.slurm cimport (
     reserve_info_t,
@@ -147,7 +146,9 @@ cdef class Reservation:
                 flags = ["MAINTENANCE", "FLEX", "MAGNETIC"]
 
             When setting like this, the strings must match the names of members
-            in [pyslurm.ReservationFlags][].
+            in [pyslurm.ReservationFlags][], otherwise a [ValueError][] is
+            raised. Members of [pyslurm.ReservationFlags][] are accepted in the
+            list as well.
         reoccurrence (pyslurm.ReservationReoccurrence):
             Describes if and when this Reservation reoccurs.
             Since [pyslurm.ReservationReoccurrence] members are also just

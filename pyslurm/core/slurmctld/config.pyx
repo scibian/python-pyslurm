@@ -36,6 +36,7 @@ from pyslurm.utils.helpers import (
 )
 from pyslurm.utils import cstr
 from typing import Union
+import re
 
 
 cdef class MPIConfig:
@@ -45,7 +46,7 @@ cdef class MPIConfig:
                            "Use slurmctld.Config.load() and access the "
                            "mpi_config attribute there")
 
-    def to_dict(self):
+    def to_dict(self, recursive = False):
         """MPI config formatted as a dictionary.
 
         Returns:
@@ -56,7 +57,7 @@ cdef class MPIConfig:
             >>> config = slurmctld.Config.load()
             >>> mpi_config = config.mpi_config.to_dict()
         """
-        return instance_to_dict(self)
+        return instance_to_dict(self, recursive)
 
     @staticmethod
     cdef MPIConfig from_ptr(void *ptr):
@@ -75,7 +76,7 @@ cdef class MPIConfig:
                 conf.get("PMIxEnv", ""), delim1=";", delim2="=")
         out.pmix_fence_barrier = _true_false_to_bool(conf.get("PMIxFenceBarrier", "false"))
         out.pmix_net_devices_ucx = conf.get("PMIxNetDevicesUCX")
-        out.pmix_timeout = int(conf.get("PMIxTimeout", 300))
+        out.pmix_timeout = int(_get_digits(conf.get("PMIxTimeout", "300")))
         out.pmix_tls_ucx = cstr.to_list(conf.get("PMIxTlsUCX", ""))
 
         return out
@@ -88,7 +89,7 @@ cdef class CgroupConfig:
                            "Use slurmctld.Config.load() and access the "
                            "cgroup_config attribute there")
 
-    def to_dict(self):
+    def to_dict(self, recursive = False):
         """Cgroup config formatted as a dictionary.
 
         Returns:
@@ -99,7 +100,7 @@ cdef class CgroupConfig:
             >>> config = slurmctld.Config.load()
             >>> cgroup_config = config.cgroup_config.to_dict()
         """
-        return instance_to_dict(self)
+        return instance_to_dict(self, recursive)
 
     @staticmethod
     cdef CgroupConfig from_ptr(void *ptr):
@@ -109,28 +110,26 @@ cdef class CgroupConfig:
 
         out.mountpoint = conf.get("CgroupMountpoint", "/sys/fs/cgroup")
         out.plugin = conf.get("CgroupPlugin", "autodetect")
-
-        systemd_timeout = conf.get("SystemdTimeout", "1000")
-        out.systemd_timeout = int(systemd_timeout.split(" ")[0])
-
+        out.systemd_timeout = int(_get_digits(conf.get("SystemdTimeout", "1000")))
         out.ignore_systemd = _yesno_to_bool(conf.get("IgnoreSystemd"))
         out.ignore_systemd_on_failure = _yesno_to_bool(conf.get("IgnoreSystemdOnFailure"))
         out.enable_controllers = _yesno_to_bool(conf.get("EnableControllers"))
 
-        out.allowed_ram_space = float(conf.get("AllowedRAMSpace", 100.0))
-        out.allowed_swap_space = float(conf.get("AllowedSwapSpace", 0.0))
+        out.allowed_ram_space = float(_get_digits(conf.get("AllowedRAMSpace", "100.0%")))
+        out.allowed_swap_space = float(_get_digits(conf.get("AllowedSwapSpace", "0.0%")))
         out.constrain_cores = _yesno_to_bool(conf.get("ConstrainCores", "no"))
         out.constrain_devices = _yesno_to_bool(conf.get("ConstrainDevices", "no"))
         out.constrain_ram_space = _yesno_to_bool(conf.get("ConstrainRAMSpace", "no"))
         out.constrain_swap_space = _yesno_to_bool(conf.get("ConstrainSwapSpace", "no"))
-        out.max_ram_percent = float(conf.get("MaxRAMPercent", 100.0))
-        out.max_swap_percent = float(conf.get("MaxSwapPercent", 100.0))
+        out.max_ram_percent = float(_get_digits(conf.get("MaxRAMPercent", "100.0%")))
+        out.max_swap_percent = float(_get_digits(conf.get("MaxSwapPercent", "100.0%")))
         out.memory_swappiness = float(conf.get("MemorySwappiness", -1.0))
-        out.min_ram_space = int(conf.get("MinRAMSpace", 30*1024))
+        out.min_ram_space = int(_get_digits(conf.get("MinRAMSpace", "30MB")))
 
         out.signal_children_processes = _yesno_to_bool(conf.get("SignalChildrenProcesses", "no"))
 
         return out
+
 
 cdef class AccountingGatherConfig:
 
@@ -139,7 +138,7 @@ cdef class AccountingGatherConfig:
                            "Use slurmctld.Config.load() and access the "
                            "accounting_gather_config attribute there")
 
-    def to_dict(self):
+    def to_dict(self, recursive = False):
         """AccountingGather config formatted as a dictionary.
 
         Returns:
@@ -150,7 +149,7 @@ cdef class AccountingGatherConfig:
             >>> config = slurmctld.Config.load()
             >>> acctg_config_dict = config.accounting_gather_config.to_dict()
         """
-        return instance_to_dict(self)
+        return instance_to_dict(self, recursive)
 
     @staticmethod
     cdef AccountingGatherConfig from_ptr(void *ptr):
@@ -194,7 +193,7 @@ cdef class Config:
                            "Use slurmctld.Config.load() to get an instance.")
 
     def __dealloc__(self):
-        slurm_free_ctl_conf(self.ptr)
+        slurm_free_conf(self.ptr)
         self.ptr = NULL
 
     @staticmethod
@@ -211,7 +210,7 @@ cdef class Config:
         # TODO: node_features_conf
         return conf
 
-    def to_dict(self):
+    def to_dict(self, recursive = False):
         """Slurmctld config formatted as a dictionary.
 
         Returns:
@@ -222,14 +221,12 @@ cdef class Config:
             >>> config = pyslurm.slurmctld.Config.load()
             >>> config_dict = config.as_dict()
         """
-        out = instance_to_dict(self)
-        out["cgroup_config"] = self.cgroup_config.to_dict()
-        out["accounting_gather_config"] = self.accounting_gather_config.to_dict()
-        out["mpi_config"] = self.mpi_config.to_dict()
+        out = instance_to_dict(self, recursive)
         return out
 
     @property
     def cgroup_config(self):
+        # TODO: should these be none if there is actually no config?
         if not self._cgroup_config:
             self._cgroup_config =  CgroupConfig.from_ptr(self.ptr.cgroup_conf)
         return self._cgroup_config
@@ -286,10 +283,6 @@ cdef class Config:
     @property
     def accounting_storage_type(self):
         return cstr.to_unicode(self.ptr.accounting_storage_type)
-
-    @property
-    def accounting_storage_user(self):
-        return cstr.to_unicode(self.ptr.accounting_storage_user)
 
     @property
     def accounting_store_flags(self):
@@ -524,6 +517,10 @@ cdef class Config:
         return cstr.to_unicode(self.ptr.health_check_program)
 
     @property
+    def health_check_timeout(self):
+        return u16_parse(self.ptr.health_check_timeout)
+
+    @property
     def inactive_limit(self):
         return u16_parse(self.ptr.inactive_limit)
 
@@ -569,8 +566,8 @@ cdef class Config:
         return cstr.to_unicode(self.ptr.job_comp_user)
 
     @property
-    def job_container_type(self):
-        return cstr.to_unicode(self.ptr.job_container_plugin)
+    def namespace_plugin(self):
+        return cstr.to_unicode(self.ptr.namespace_plugin)
 
     @property
     def job_defaults(self):
@@ -602,6 +599,10 @@ cdef class Config:
     @property
     def launch_parameters(self):
         return cstr.to_list(self.ptr.launch_params)
+
+    @property
+    def license_parameters(self):
+        return cstr.to_list(self.ptr.license_params)
 
     @property
     def licenses(self):
@@ -685,6 +686,22 @@ cdef class Config:
     @property
     def mcs_parameters(self):
         return cstr.to_list(self.ptr.mcs_plugin_params)
+
+    @property
+    def metrics_auth(self):
+        return u8_parse_bool(self.ptr.metrics_auth)
+
+    @property
+    def metrics_auth_users(self):
+        return cstr.to_list(self.ptr.metrics_auth_users)
+
+    @property
+    def metrics_parameters(self):
+        return cstr.to_list(self.ptr.metrics_params)
+
+    @property
+    def metrics_type(self):
+        return cstr.to_unicode(self.ptr.metrics_type)
 
     @property
     def min_job_age(self):
@@ -984,6 +1001,10 @@ cdef class Config:
         return cstr.to_unicode(self.ptr.slurmd_user_name)
 
     @property
+    def slurmctld_http_auth_parameters(self):
+        return cstr.to_list(self.ptr.slurmctld_http_auth_params)
+
+    @property
     def slurmctld_log_level(self):
         return _log_level_int_to_str(self.ptr.slurmctld_debug)
 
@@ -1026,6 +1047,10 @@ cdef class Config:
     def slurmctld_parameters(self):
         return cstr.to_dict(self.ptr.slurmctld_params, delim1=",",
                             delim2="=", def_value=True)
+
+    @property
+    def slurmd_http_auth_parameters(self):
+        return cstr.to_list(self.ptr.slurmd_http_auth_params)
 
     @property
     def slurmd_log_level(self):
@@ -1217,6 +1242,10 @@ cdef dict _parse_config_key_pairs(void *ptr, owned=False):
         key_pair = <config_key_pair_t*>item.data
         name = cstr.to_unicode(key_pair.name)
         val = cstr.to_unicode(key_pair.value)
+
+        if not val or val == "(null)":
+            val = None
+
         out[name] = val
 
     return out
@@ -1233,6 +1262,10 @@ def _str_to_bool(val, true_str, false_str):
         return False
     else:
         return False
+
+
+def _get_digits(val):
+    return re.split(r'\D+', val)[0]
 
 
 def _yesno_to_bool(val):
