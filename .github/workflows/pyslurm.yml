@@ -1,47 +1,106 @@
 name: PySlurm
-on: [push, pull_request]
+
+env:
+  SLURM_DOCKER_IMAGE: giovtorres/slurm-docker:26.05.3-rl10
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch:
+
 jobs:
-  Build:
-    runs-on: ubuntu-20.04
+  tests:
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version:
-          - "3.6"
-          - "3.7"
-          - "3.8"
-          - "3.9"
+        include:
+          - slurm-image: giovtorres/slurm-docker:26.05.3-rl10
+            python-version: "3.12"
+          - slurm-image: giovtorres/slurm-docker:26.05.3-rl9
+            python-version: "3.9"
+          - slurm-image: giovtorres/slurm-docker:26.05.3-rl8
+            python-version: "3.6"
       fail-fast: false
+    env:
+      SLURM_DOCKER_IMAGE: ${{ matrix.slurm-image }}
     steps:
-      - name: Checkout repository code
-        uses: actions/checkout@v2
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Install Dependencies
-        run: |
-          which python
-          which python${{ matrix.python-version }}
-          python${{ matrix.python-version }} -m pip install --upgrade pip
-          python${{ matrix.python-verison }} -m pip install pipenv
-          pipenv --python ${{matrix.python-version }} install --dev --skip-lock
-      - name: Start Slurm Container
-        uses: sudo-bot/action-docker-compose@latest
-        with:
-          cli-args: "-f docker-compose-github.yml up -d"
-        env:
-          PYTHON: ${{ matrix.python-version }}
-      - name: Debug
-        run: |
-          docker ps -a
-          docker version
-          pwd
-          ls -al
-          docker inspect slurmctl
-          env | sort
-      - name: Build/Install/Test PySlurm
-        run: |
-          pipenv run pytest -sv scripts/run_tests_in_container.py
-        env:
-          PYTHON: ${{ matrix.python-version }}
+      - name: Checkout repository
+        uses: actions/checkout@v6
 
+      - name: Pull Slurm container
+        run: docker pull ${{ matrix.slurm-image }}
+
+      - name: Start Slurm container
+        run: docker compose up -d
+
+      - name: Run unit tests
+        run: scripts/run_tests.sh -u
+
+      - name: Run integration tests
+        run: scripts/run_tests.sh -s -i
+
+  build-sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install build
+        run: pip install build
+
+      - name: Build sdist
+        run: python -m build --sdist
+
+      - name: Upload sdist artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+          retention-days: 7
+
+  build-rpm:
+    runs-on: ubuntu-latest
+    needs: build-sdist
+    if: github.event_name == 'pull_request' || github.event_name == 'release'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Download sdist artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: sdist
+          path: dist/
+
+      - name: Pull Slurm container
+        run: docker pull ${{ env.SLURM_DOCKER_IMAGE }}
+
+      - name: Start Slurm container
+        run: docker compose up -d
+
+      - name: Build RPM
+        run: scripts/build_rpm.sh
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: [tests, build-sdist, build-rpm]
+    if: github.event_name == 'release'
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - name: Download sdist artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: sdist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

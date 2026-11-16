@@ -21,21 +21,56 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 import autopxd
+import autopxd.writer
 import click
 from datetime import datetime
 import os
-import re
 import pathlib
 from collections import OrderedDict
+from pycparser import c_ast
+
+
+def _strip_casts(node):
+    """Recursively remove Cast nodes from an expression."""
+    while isinstance(node, c_ast.Cast):
+        node = node.expr
+
+    for attr in ("left", "right", "expr"):
+        child = getattr(node, attr, None)
+        if isinstance(child, c_ast.Node):
+            setattr(node, attr, _strip_casts(child))
+
+    return node
+
+
+def _patch_autopxd_enum_casts():
+    """Teach autopxd2 to handle cast expressions in enum values.
+
+    Slurm defines SLURM_BIT(offset) as ((uint64_t)1 << offset) and uses it
+    for enum values, which the preprocessor expands into a Cast node that
+    autopxd2 refuses to parse. The values are only used internally by
+    autopxd2 to resolve array dimensions and never end up in the generated
+    output, so dropping the cast is safe here.
+    """
+    original = autopxd.writer.parse_enum_value
+
+    def parse_enum_value(node, constants):
+        return original(_strip_casts(node), constants)
+
+    autopxd.writer.parse_enum_value = parse_enum_value
+
+
+_patch_autopxd_enum_casts()
 
 UINT8_RANGE = range((2**8))
 UINT16_RANGE = range((2**16))
 UINT32_RANGE = range((2**32))
 UINT64_RANGE = range((2**64))
-INT8_RANGE = range(-128, 127+1)
+INT8_RANGE = range(-128, 127 + 1)
 
 # TODO: also translate slurm enums automatically as variables like:
 # <ENUM-NAME> = slurm.<ENUM_NAME>
+
 
 def get_data_type(val):
     if val in UINT8_RANGE:
@@ -67,14 +102,14 @@ def capture_copyright(hdr_file):
 
 def try_get_macro_value(s):
     if s.startswith("SLURM_BIT"):
-        val = int(s[s.find("(")+1:s.find(")")])
+        val = int(s[s.find("(") + 1 : s.find(")")])
         return 1 << val
 
     if s.startswith("0x"):
         return int(s, 16)
 
     if s.startswith("(0x"):
-        _s = s[s.find("(")+1:s.find(")")]
+        _s = s[s.find("(") + 1 : s.find(")")]
         return int(_s, 16)
 
     try:
@@ -103,7 +138,10 @@ def translate_slurm_header(hdr_dir, hdr):
         macros = "".join(translate_hdr_macros(lines, hdr))
 
         c = click.get_current_context()
-        if c.params["show_unparsed_macros"] or c.params["generate_python_const"]:
+        if (
+            c.params["show_unparsed_macros"]
+            or c.params["generate_python_const"]
+        ):
             return
 
         codegen = autopxd.AutoPxd("slurm/" + hdr)
@@ -204,7 +242,7 @@ def translate_hdr_macros(s, hdr):
     unknown = []
     for line in s:
         if line.startswith("#define"):
-            name, ty = parse_macro(line.rstrip('\n'), hdr)
+            name, ty = parse_macro(line.rstrip("\n"), hdr)
             if ty:
                 vals.update({name: ty})
             elif name and not ty:
@@ -226,12 +264,13 @@ def translate_hdr_macros(s, hdr):
                 print("{} = slurm.{}".format(name, name))
         else:
             hdr_file = "slurm/" + hdr
-            out.append(f"cdef extern from \"{hdr_file}\":\n")
+            out.append(f'cdef extern from "{hdr_file}":\n')
             out.append("\n")
             for name, ty in vals.items():
                 out.append(f"    {ty} {name}\n")
 
     return out
+
 
 def setup_include_path(hdr_dir):
     include_dir = pathlib.Path(hdr_dir).parent.as_posix()
@@ -277,13 +316,18 @@ def setup_include_path(hdr_dir):
     is_flag=True,
     help="Instead of writing everything to files, just print to stdout.",
 )
-def main(slurm_header_dir, show_unparsed_macros,
-         generate_python_const, output_dir, stdout):
+def main(
+    slurm_header_dir,
+    show_unparsed_macros,
+    generate_python_const,
+    output_dir,
+    stdout,
+):
     setup_include_path(slurm_header_dir)
     translate_slurm_header(slurm_header_dir, "slurm_errno.h")
     translate_slurm_header(slurm_header_dir, "slurm.h")
     translate_slurm_header(slurm_header_dir, "slurmdb.h")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

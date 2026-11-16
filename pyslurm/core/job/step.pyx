@@ -107,10 +107,11 @@ cdef class JobSteps(dict):
         cdef:
             JobStep step
             uint32_t cnt = 0
+            slurm_step_id_t step_id = init_step_id()
             dict steps = {}
 
-        rc = slurm_get_job_steps(<time_t>0, job_id, slurm.NO_VAL, &self.info,
-                                 flags)
+        step_id.job_id = job_id
+        rc = slurm_get_job_steps(&step_id, &self.info, flags)
         verify_rpc(rc)
 
         # zero-out a dummy job_step_info_t
@@ -143,8 +144,8 @@ cdef class JobSteps(dict):
         cdef JobSteps steps = JobSteps()
         return steps._load_data(slurm.NO_VAL, slurm.SHOW_ALL)
 
-    def to_dict(self):
-        return xcollections.dict_recursive(self)
+    def to_dict(self, recursive = False):
+        return xcollections.dict_recursive(self, recursive)
 
 
 cdef class JobStep:
@@ -235,10 +236,11 @@ cdef class JobStep:
         cdef:
             job_step_info_response_msg_t *info = NULL
             JobStep wrap = None
+            slurm_step_id_t _step_id = init_step_id()
 
-        job_id = job_id.id if isinstance(job_id, Job) else job_id
-        rc = slurm_get_job_steps(<time_t>0, job_id, dehumanize_step_id(step_id),
-                                       &info, slurm.SHOW_ALL)
+        _step_id.job_id = job_id.id if isinstance(job_id, Job) else job_id
+        _step_id.step_id = dehumanize_step_id(step_id)
+        rc = slurm_get_job_steps(&_step_id, &info, slurm.SHOW_ALL)
         verify_rpc(rc)
 
         if info and info.job_step_count == 1:
@@ -311,9 +313,8 @@ cdef class JobStep:
 
             >>> pyslurm.JobStep(9999, 1).send_signal(9)
         """
-        step_id = self.ptr.step_id.step_id
         sig = signal_to_num(signal)
-        verify_rpc(slurm_signal_job_step(self.job_id, step_id, sig))
+        verify_rpc(slurm_signal_job_step(&self.ptr.step_id, sig))
 
     def cancel(self):
         """Cancel a Job step.
@@ -327,8 +328,7 @@ cdef class JobStep:
             >>> import pyslurm
             >>> pyslurm.JobStep(9999, 1).cancel()
         """
-        step_id = self.ptr.step_id.step_id
-        verify_rpc(slurm_kill_job_step(self.job_id, step_id, 9, 0))
+        verify_rpc(slurm_kill_job_step(&self.ptr.step_id, 9, 0))
 
     def modify(self, JobStep changes):
         """Modify a job step.
@@ -353,28 +353,19 @@ cdef class JobStep:
         """
         cdef JobStep js = <JobStep>changes
         js._alloc_umsg()
-        js.umsg.step_id = self.ptr.step_id.step_id
-        js.umsg.job_id = self.ptr.step_id.job_id
+        js.umsg.step_id = self.ptr.step_id
         verify_rpc(slurm_update_step(js.umsg))
 
     def as_dict(self):
         return self.to_dict()
 
-    def to_dict(self):
+    def to_dict(self, recursive = False):
         """JobStep information formatted as a dictionary.
 
         Returns:
             (dict): JobStep information as dict
         """
-        cdef dict out = instance_to_dict(self)
-
-        dist = self.distribution
-        if dist:
-            out["distribution"] = dist.to_dict()
-
-        out["stats"] = self.stats.to_dict()
-        out["pids"] = self.pids
-        return out
+        return instance_to_dict(self, recursive)
 
     @property
     def id(self):
@@ -449,6 +440,21 @@ cdef class JobStep:
         return cstr.to_unicode(self.ptr.container)
 
     @property
+    def container_id(self):
+        return cstr.to_unicode(self.ptr.container_id)
+
+    @property
+    def container_type(self):
+        return cstr.to_unicode(self.ptr.container_type)
+
+    def array_id(self):
+        return u32_parse(self.ptr.array_job_id)
+
+    @property
+    def array_task_id(self):
+        return u32_parse(self.ptr.array_task_id)
+
+    @property
     def allocated_nodes(self):
         return cstr.to_list(self.ptr.nodes)
 
@@ -499,3 +505,54 @@ cdef class JobStep:
     @property
     def slurm_protocol_version(self):
         return u32_parse(self.ptr.start_protocol_ver)
+
+    cdef _get_stdio(self, char *path):
+        cdef char *tmp_path = slurm.slurm_expand_step_stdio_fields(path, self.ptr)
+        path_str = cstr.to_unicode(tmp_path)
+        xfree(tmp_path)
+        return path_str
+
+    @property
+    def standard_input(self):
+        return self._get_stdio(self.ptr.std_in)
+
+    @property
+    def standard_output(self):
+        return self._get_stdio(self.ptr.std_out)
+
+    @property
+    def standard_error(self):
+        return self._get_stdio(self.ptr.std_err)
+
+    @property
+    def working_directory(self):
+        return cstr.to_unicode(self.ptr.cwd)
+
+    @property
+    def gres(self):
+        tres = self.tres
+        return tres.gres if tres else {}
+
+    @property
+    def gpus(self):
+        return {k: v for k, v in self.gres.items() if isinstance(v, GPU)}
+
+    @property
+    def tres(self):
+        return TrackableResources.from_cstr(self.ptr.tres_fmt_alloc_str)
+
+    @property
+    def tres_per_step(self):
+        return TrackableResources.from_cstr(self.ptr.tres_per_step)
+
+    @property
+    def tres_per_socket(self):
+        return TrackableResources.from_cstr(self.ptr.tres_per_socket)
+
+    @property
+    def tres_per_node(self):
+        return TrackableResources.from_cstr(self.ptr.tres_per_node)
+
+    @property
+    def tres_per_task(self):
+        return TrackableResources.from_cstr(self.ptr.tres_per_task)

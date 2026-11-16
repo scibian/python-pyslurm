@@ -27,6 +27,7 @@ from grp import getgrgid, getgrnam, getgrall
 from pwd import getpwuid, getpwnam, getpwall
 from os import getuid, getgid
 from itertools import chain
+from enum import Enum, Flag
 import re
 import signal
 from pyslurm.constants import UNLIMITED
@@ -43,7 +44,7 @@ MEMORY_UNITS = {
 }
 
 
-cpdef uid_to_name(uint32_t uid, err_on_invalid=True, dict lookup={}):
+cpdef uid_to_name(uint32_t uid, err_on_invalid=False, dict lookup={}):
     """Translate UID to a User-Name."""
     if uid == slurm.NO_VAL or uid == slurm.INFINITE:
         return None
@@ -63,10 +64,10 @@ cpdef uid_to_name(uint32_t uid, err_on_invalid=True, dict lookup={}):
             if err_on_invalid:
                 raise e
 
-    return None
+    return str(uid)
 
 
-cpdef gid_to_name(uint32_t gid, err_on_invalid=True, dict lookup={}):
+cpdef gid_to_name(uint32_t gid, err_on_invalid=False, dict lookup={}):
     """Translate a uid to a Group-Name."""
     if gid == slurm.NO_VAL or gid == slurm.INFINITE:
         return None
@@ -86,7 +87,7 @@ cpdef gid_to_name(uint32_t gid, err_on_invalid=True, dict lookup={}):
             if err_on_invalid:
                 raise e
 
-    return None
+    return str(gid)
 
 
 def user_to_uid(user, err_on_invalid=True):
@@ -329,15 +330,25 @@ def cpubind_to_num(cpu_bind):
     return flags
 
 
-def instance_to_dict(inst):
+def instance_to_dict(inst, recursive=False):
     cdef dict out = {}
     for attr in dir(inst):
         val = getattr(inst, attr)
-        if attr.startswith("_") or callable(val):
-            # Ignore everything starting with "_" and all functions.
-            continue
-        out[attr] = val
 
+        if attr.startswith("_") or callable(val):
+            continue
+
+        if recursive:
+            # Convert everything into plain, JSON-serializable data.
+            if hasattr(val, "to_dict"):
+                val = val.to_dict(recursive=recursive)
+            elif isinstance(val, Flag):
+                # Flag must be checked before Enum, since it is a subclass.
+                val = val.to_list()
+            elif isinstance(val, Enum):
+                val = val.value
+
+        out[attr] = val
     return out
 
 
@@ -418,3 +429,21 @@ def cpu_freq_int_to_str(freq):
     else:
         # This is in kHz
         return freq
+
+
+cdef slurm_step_id_t init_step_id():
+    cdef slurm_step_id_t _s
+    memset(&_s, 0, sizeof(slurm_step_id_t))
+    _s.sluid = 0
+    _s.job_id = slurm.NO_VAL
+    _s.step_het_comp = slurm.NO_VAL
+    _s.step_id = slurm.NO_VAL
+    return _s
+
+
+cdef slurm_step_id_t init_job_step_id(uint32_t job_id):
+    # Since 26.05, RPCs that used to take a plain job_id now take a
+    # slurm_step_id_t. Leaving step_id as NO_VAL addresses the Job itself.
+    cdef slurm_step_id_t _s = init_step_id()
+    _s.job_id = job_id
+    return _s

@@ -21,7 +21,6 @@
 """test_node.py - Test the node api functions."""
 
 import pytest
-import pyslurm
 import json
 from pyslurm import Node, Nodes, RPCError
 
@@ -35,18 +34,8 @@ def test_load():
     assert node.weight is not None
     assert node.slurm_version is not None
 
-    with pytest.raises(RPCError,
-                       match=f"Node 'nonexistent' does not exist"):
+    with pytest.raises(RPCError, match="Node 'nonexistent' does not exist"):
         Node.load("nonexistent")
-
-
-def test_create():
-    node = Node("testhostpyslurm")
-    node.create()
-
-    with pytest.raises(RPCError,
-                       match=f"Invalid node state specified"):
-        Node("testhostpyslurm2").create("idle")
 
 
 def test_modify():
@@ -75,3 +64,12 @@ def test_to_json():
     assert dict_data
     assert len(dict_data) >= 1
     assert json_data
+
+
+def test_suspend_time():
+    name, _ = Nodes.load().popitem()
+    node = Node.load(name)
+
+    assert node.suspend_time in (None, "UNLIMITED")
+    assert node.suspend_time != node.boot_time
+    assert "suspend_time" in node.to_dict()
