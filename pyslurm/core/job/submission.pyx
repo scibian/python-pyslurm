@@ -102,7 +102,7 @@ cdef class JobSubmitDescription:
         self._create_job_submit_desc()
         verify_rpc(slurm_submit_batch_job(self.ptr, &resp))
 
-        job_id = resp.job_id
+        job_id = resp.step_id.job_id
         slurm_free_submit_response_response_msg(resp)
 
         return job_id
@@ -168,7 +168,7 @@ cdef class JobSubmitDescription:
                 continue
 
             spec = attr.upper()
-            val = pyenviron.get(f"PYSLURM_JOBDESC_{spec)}")
+            val = pyenviron.get(f"PYSLURM_JOBDESC_{spec}")
             if (val is not None
                     and (getattr(self, attr) is None or overwrite)):
 
@@ -215,6 +215,8 @@ cdef class JobSubmitDescription:
         cstr.fmalloc(&ptr.network, self.network)
         cstr.fmalloc(&ptr.qos, self.qos)
         cstr.fmalloc(&ptr.container, self.container)
+        cstr.fmalloc(&ptr.container_id, self.container_id)
+        cstr.fmalloc(&ptr.container_type, self.container_type)
         cstr.fmalloc(&ptr.std_in, self.standard_in)
         cstr.fmalloc(&ptr.std_out, self.standard_output)
         cstr.fmalloc(&ptr.std_err, self.standard_error)
@@ -228,8 +230,10 @@ cdef class JobSubmitDescription:
         cstr.fmalloc(&ptr.cpus_per_tres,
                      cstr.from_gres_dict(self.cpus_per_gpu, "gpu"))
         cstr.fmalloc(&ptr.admin_comment, self.admin_comment)
-        cstr.fmalloc(&self.ptr.dependency,
+        cstr.fmalloc(&ptr.dependency,
                      _parse_dependencies(self.dependencies))
+        cstr.fmalloc(&ptr.req_context, self.selinux_context)
+        cstr.fmalloc(&ptr.extra, self.extra)
         cstr.from_list(&ptr.clusters, self.clusters)
         cstr.from_list(&ptr.exc_nodes, self.excluded_nodes)
         cstr.from_list(&ptr.req_nodes, self.required_nodes)
@@ -253,6 +257,8 @@ cdef class JobSubmitDescription:
         ptr.ntasks_per_node = u16(self.ntasks_per_node)
         ptr.threads_per_core = u16(self.threads_per_core)
         ptr.ntasks_per_core = u16(self.ntasks_per_core)
+        ptr.segment_size = u16(self.segment_size)
+        ptr.resv_port_cnt = u16(self.reserved_ports)
         u64_set_bool_flag(&ptr.bitflags, self.spreads_over_nodes,
                           slurm.SPREAD_JOB)
         u64_set_bool_flag(&ptr.bitflags, self.kill_on_invalid_dependency,
@@ -295,6 +301,8 @@ cdef class JobSubmitDescription:
         # --hint
         # spank_env
         # --propagate for rlimits
+
+        # TODO: maybe pn_min_cpus needed?
 
     def _set_defaults(self):
         if not self.ntasks:
@@ -362,7 +370,7 @@ cdef class JobSubmitDescription:
         elif self.memory_per_node:
             self.ptr.pn_min_memory = u64(dehumanize(self.memory_per_node))
         elif self.memory_per_gpu:
-            mem_gpu = u64(dehumanize(val))
+            mem_gpu = u64(dehumanize(self.memory_per_gpu))
             cstr.fmalloc(&self.ptr.mem_per_tres, f"gres:gpu:{mem_gpu}")
 
     def _set_open_mode(self):
@@ -704,7 +712,11 @@ def _validate_cpu_freq(freq):
 
 
 def _validate_batch_script(script, args=None):
-    if Path(script).is_file():
+    try:
+        _is_file = Path(script).is_file()
+    except (ValueError, OSError):
+        _is_file = False
+    if _is_file:
         # First assume the caller is passing a path to a script and we try
         # to load it.
         script = Path(script).read_text()

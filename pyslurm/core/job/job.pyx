@@ -41,6 +41,7 @@ from pyslurm.core.error import (
     verify_rpc,
     slurm_errno,
 )
+from pyslurm.enums import JobExclusive, JobOversubscribe
 from pyslurm.utils.ctime import _raw_time
 from pyslurm.utils.helpers import (
     uid_to_name,
@@ -286,9 +287,10 @@ cdef class Job:
         cdef:
             job_info_msg_t *info = NULL
             Job wrap = None
+            slurm_step_id_t step_id = init_job_step_id(job_id)
 
         try:
-            verify_rpc(slurm_load_job(&info, job_id, slurm.SHOW_DETAIL))
+            verify_rpc(slurm_load_job(&info, step_id, slurm.SHOW_DETAIL))
 
             if info and info.record_count:
                 wrap = Job.from_ptr(&info.job_array[0])
@@ -332,17 +334,13 @@ cdef class Job:
     def as_dict(self):
         return self.to_dict()
 
-    def to_dict(self):
+    def to_dict(self, recursive = False):
         """Job information formatted as a dictionary.
 
         Returns:
             (dict): Job information as dict
         """
-        cdef dict out = instance_to_dict(self)
-        out["steps"] = self.steps.to_dict()
-        out["stats"] = self.stats.to_dict()
-        out["pids"] = self.pids
-        return out
+        return instance_to_dict(self, recursive)
 
     def send_signal(self, signal, steps="children", hurry=False):
         """Send a signal to a running Job.
@@ -377,7 +375,9 @@ cdef class Job:
 
             >>> Job(9999).send_signal(9)
         """
-        cdef uint16_t flags = 0
+        cdef:
+            uint16_t flags = 0
+            slurm_step_id_t step_id = init_job_step_id(self.id)
 
         if steps.casefold() == "all":
             flags |= slurm.KILL_FULL_JOB
@@ -388,7 +388,7 @@ cdef class Job:
             flags |= slurm.KILL_HURRY
 
         sig = signal_to_num(signal)
-        slurm_kill_job(self.id, sig, flags)
+        slurm_kill_job(step_id, sig, flags)
 
         # Ignore errors when the Job is already done or when SIGKILL was
         # specified and the job id is already purged from slurmctlds memory.
@@ -430,7 +430,8 @@ cdef class Job:
         # _slurm_rpc_suspend it should return ESLURM_INVALID_JOB_ID, but
         # returns -1
         # https://github.com/SchedMD/slurm/blob/master/src/slurmctld/proc_req.c#L4693
-        verify_rpc(slurm_suspend(self.id))
+        cdef slurm_step_id_t step_id = init_job_step_id(self.id)
+        verify_rpc(slurm_suspend(step_id))
 
     def unsuspend(self):
         """Unsuspend a currently suspended Job.
@@ -445,7 +446,8 @@ cdef class Job:
             >>> pyslurm.Job(9999).unsuspend()
         """
         # Same problem as described in suspend()
-        verify_rpc(slurm_resume(self.id))
+        cdef slurm_step_id_t step_id = init_job_step_id(self.id)
+        verify_rpc(slurm_resume(step_id))
 
     def modify(self, JobSubmitDescription changes):
         """Modify a Job.
@@ -468,7 +470,7 @@ cdef class Job:
             >>> pyslurm.Job(9999).modify(changes)
         """
         changes._create_job_submit_desc(is_update=True)
-        changes.ptr.job_id = self.id
+        changes.ptr.step_id.job_id = self.id
         verify_rpc(slurm_update_job(changes.ptr))
 
     def hold(self, mode=None):
@@ -536,12 +538,14 @@ cdef class Job:
             >>> # Requeing a Job while putting it in a held state
             >>> pyslurm.Job(9999).requeue(hold=True)
         """
-        cdef uint32_t flags = 0
+        cdef:
+            uint32_t flags = 0
+            slurm_step_id_t step_id = init_job_step_id(self.id)
 
         if hold:
             flags |= slurm.JOB_REQUEUE_HOLD
 
-        verify_rpc(slurm_requeue(self.id, flags))
+        verify_rpc(slurm_requeue(step_id, flags))
 
     def notify(self, msg):
         """Sends a message to the Jobs stdout.
@@ -560,7 +564,8 @@ cdef class Job:
             >>> import pyslurm
             >>> pyslurm.Job(9999).notify("Hello Friends!")
         """
-        verify_rpc(slurm_notify_job(self.id, msg))
+        cdef slurm_step_id_t step_id = init_job_step_id(self.id)
+        verify_rpc(slurm_notify_job(step_id, msg))
 
     def load_stats(self):
         """Load realtime statistics for a Job and its steps.
@@ -654,9 +659,9 @@ cdef class Job:
         slurm_msg_t_init(&resp)
 
         memset(&msg, 0, sizeof(msg))
-        msg.job_id   = self.id
+        msg.step_id.job_id = self.id
         req.msg_type = slurm.REQUEST_BATCH_SCRIPT
-        req.data     = &msg
+        req.data = &msg
 
         rc = slurm_send_recv_controller_msg(&req, &resp, working_cluster_rec)
         verify_rpc(rc)
@@ -827,6 +832,10 @@ cdef class Job:
         return cstr.to_unicode(self.ptr.alloc_node)
 
     @property
+    def submit_session_id(self):
+        return u32_parse(self.ptr.alloc_sid)
+
+    @property
     def batch_host(self):
         return cstr.to_unicode(self.ptr.batch_host)
 
@@ -884,11 +893,11 @@ cdef class Job:
 
     @property
     def federation_siblings_active(self):
-        return u64_parse(self.ptr.fed_siblings_active)
+        return cstr.to_list(self.ptr.fed_siblings_active_str)
 
     @property
     def federation_siblings_viable(self):
-        return u64_parse(self.ptr.fed_siblings_viable)
+        return cstr.to_list(self.ptr.fed_siblings_viable_str)
 
     @property
     def cpus(self):
@@ -965,6 +974,10 @@ cdef class Job:
         return cstr.to_list(self.ptr.features)
 
     @property
+    def preferred_features(self):
+        return cstr.to_list(self.ptr.prefer)
+
+    @property
     def cluster(self):
         return cstr.to_unicode(self.ptr.cluster)
 
@@ -981,12 +994,26 @@ cdef class Job:
         return cstr.to_unicode(slurm_job_share_string(self.ptr.shared))
 
     @property
+    def exclusive(self):
+        return JobExclusive.from_value(self.ptr.exclusive,
+                                       default=JobExclusive.NONE)
+
+    @property
+    def oversubscribe(self):
+        return JobOversubscribe.from_value(self.ptr.oversubscribe,
+                                           default=JobOversubscribe.NO)
+
+    @property
     def requires_contiguous_nodes(self):
         return u16_parse_bool(self.ptr.contiguous)
 
     @property
     def licenses(self):
         return cstr.to_list(self.ptr.licenses)
+
+    @property
+    def allocated_licenses(self):
+        return cstr.to_list(self.ptr.licenses_allocated)
 
     @property
     def network(self):
@@ -1011,6 +1038,22 @@ cdef class Job:
     @property
     def container(self):
         return cstr.to_unicode(self.ptr.container)
+
+    @property
+    def container_id(self):
+        return cstr.to_unicode(self.ptr.container_id)
+
+    @property
+    def container_type(self):
+        return cstr.to_unicode(self.ptr.container_type)
+
+    @property
+    def memory_update_delay(self):
+        return u16_parse(self.ptr.mem_update_delay)
+
+    @property
+    def memory_update_margin(self):
+        return u16_parse(self.ptr.mem_update_margin)
 
     @property
     def comment(self):
@@ -1121,7 +1164,9 @@ cdef class Job:
 
     @property
     def array_task_id(self):
-        return u32_parse(self.ptr.array_task_id)
+        if self.array_id is None:
+            return None
+        return u32_parse(self.ptr.array_task_id, zero_is_noval=False)
 
     @property
     def array_tasks_waiting(self):
@@ -1235,11 +1280,47 @@ cdef class Job:
 
     @property
     def gres_per_node(self):
+        # DEPRECATED - removed in the next major release
         return cstr.to_gres_dict(self.ptr.tres_per_node)
 
     @property
+    def gpus(self):
+        return {k: v for k, v in self.gres.items() if isinstance(v, GPU)}
+
+    @property
+    def gres(self):
+        job_running = slurm.IS_JOB_RUNNING(self.ptr)
+        tres = self.allocated_tres if job_running else self.requested_tres
+        return tres.gres if tres else {}
+
+    @property
+    def tres(self):
+        job_running = slurm.IS_JOB_RUNNING(self.ptr)
+        return self.allocated_tres if job_running else self.requested_tres
+
+    @property
+    def tres_per_node(self):
+        return TrackableResources.from_cstr(self.ptr.tres_per_node)
+
+    @property
     def tres_per_task(self):
-        return cstr.to_dict(self.ptr.tres_per_task)
+        return TrackableResources.from_cstr(self.ptr.tres_per_task)
+
+    @property
+    def tres_per_job(self):
+        return TrackableResources.from_cstr(self.ptr.tres_per_job)
+
+    @property
+    def tres_per_socket(self):
+        return TrackableResources.from_cstr(self.ptr.tres_per_socket)
+
+    @property
+    def allocated_tres(self):
+        return TrackableResources.from_cstr(self.ptr.tres_alloc_str)
+
+    @property
+    def requested_tres(self):
+        return TrackableResources.from_cstr(self.ptr.tres_req_str)
 
     @property
     def profile_types(self):
@@ -1268,6 +1349,10 @@ cdef class Job:
         return u64_parse_bool_flag(self.ptr.bitflags, slurm.KILL_INV_DEP)
 
     @property
+    def kill_step_when_oom(self):
+        return u16_parse_bool(self.ptr.oom_kill_step)
+
+    @property
     def spreads_over_nodes(self):
         return u64_parse_bool_flag(self.ptr.bitflags, slurm.SPREAD_JOB)
 
@@ -1284,12 +1369,48 @@ cdef class Job:
         return self.cpus * self.run_time
 
     @property
+    def submit_line(self):
+        return cstr.to_unicode(self.ptr.submit_line)
+
+    @property
     def run_time_remaining(self):
         limit = self.time_limit
         if limit is None:
             return None
 
         return (self.time_limit*60) - self.run_time
+
+    @property
+    def extra(self):
+        return cstr.to_unicode(self.ptr.extra)
+
+    @property
+    def failed_node(self):
+        return cstr.to_unicode(self.ptr.failed_node)
+
+    @property
+    def reserved_ports(self):
+        return cstr.to_unicode(self.ptr.resv_ports)
+
+    @property
+    def selinux_context(self):
+        return cstr.to_unicode(self.ptr.selinux_context)
+
+    @property
+    def segment_size(self):
+        return u16_parse(self.ptr.segment_size)
+
+    @property
+    def spread_segments(self):
+        return u64_parse_bool_flag(self.ptr.bitflags, slurm.SPREAD_SEGMENTS)
+
+    @property
+    def consolidate_segments(self):
+        return u64_parse_bool_flag(self.ptr.bitflags, slurm.CONSOLIDATE_SEGMENTS)
+
+    @property
+    def slurm_protocol_version(self):
+        return u16_parse(self.ptr.start_protocol_ver)
 
     def get_resource_layout_per_node(self):
         """Retrieve the resource layout of this Job on each node.

@@ -29,7 +29,6 @@ OTHER_CLUSTER = "other_cluster"
 
 
 class TestMultiClusterMap:
-
     def _create_collection(self):
         data = {
             LOCAL_CLUSTER: {
@@ -39,7 +38,7 @@ class TestMultiClusterMap:
             OTHER_CLUSTER: {
                 1: pyslurm.db.Job(1, cluster=OTHER_CLUSTER),
                 10: pyslurm.db.Job(10, cluster=OTHER_CLUSTER),
-            }
+            },
         }
         col = pyslurm.db.Jobs()
         col.update(data)
@@ -59,7 +58,7 @@ class TestMultiClusterMap:
         assert 102 in jobs
         assert jobs[101].id == 101
         assert jobs[102].id == 102
-        
+
         jobs = pyslurm.db.Jobs(
             {
                 101: pyslurm.db.Job(101),
@@ -81,13 +80,13 @@ class TestMultiClusterMap:
         col.add(item)
 
         assert len(col[LOCAL_CLUSTER]) == 3
-        assert len(col) == col_len+1
+        assert len(col) == col_len + 1
 
         item = pyslurm.db.Job(20, cluster=OTHER_CLUSTER)
         col.add(item)
 
         assert len(col[LOCAL_CLUSTER]) == 3
-        assert len(col) == col_len+2
+        assert len(col) == col_len + 2
 
     def test_get(self):
         col = self._create_collection()
@@ -128,7 +127,6 @@ class TestMultiClusterMap:
 
         for item in values:
             assert item
-            print(item)
             assert isinstance(item, pyslurm.db.Job)
             assert item.cluster in col.data
 
@@ -146,10 +144,10 @@ class TestMultiClusterMap:
         assert item1 != item3
 
         with pytest.raises(KeyError):
-            item = col[30]
+            col[30]
 
         with pytest.raises(KeyError):
-            item = col[OTHER_CLUSTER][30]
+            col[OTHER_CLUSTER][30]
 
     def test_setitem(self):
         col = self._create_collection()
@@ -158,22 +156,22 @@ class TestMultiClusterMap:
         item = pyslurm.db.Job(30)
         col[item.id] = item
         assert len(col[LOCAL_CLUSTER]) == 3
-        assert len(col) == col_len+1
+        assert len(col) == col_len + 1
 
         item = pyslurm.db.Job(50, cluster=OTHER_CLUSTER)
         col[OTHER_CLUSTER][item.id] = item
         assert len(col[OTHER_CLUSTER]) == 3
-        assert len(col) == col_len+2
+        assert len(col) == col_len + 2
 
         item = pyslurm.db.Job(100, cluster=OTHER_CLUSTER)
         col[item] = item
         assert len(col[OTHER_CLUSTER]) == 4
-        assert len(col) == col_len+3
+        assert len(col) == col_len + 3
 
         item = pyslurm.db.Job(101, cluster=OTHER_CLUSTER)
         col[(item.cluster, item.id)] = item
         assert len(col[OTHER_CLUSTER]) == 5
-        assert len(col) == col_len+4
+        assert len(col) == col_len + 4
 
         new_other_data = {
             1: pyslurm.db.Job(1),
@@ -191,11 +189,11 @@ class TestMultiClusterMap:
 
         del col[1]
         assert len(col[LOCAL_CLUSTER]) == 1
-        assert len(col) == col_len-1
+        assert len(col) == col_len - 1
 
         del col[OTHER_CLUSTER][1]
         assert len(col[OTHER_CLUSTER]) == 1
-        assert len(col) == col_len-2
+        assert len(col) == col_len - 2
 
         del col[OTHER_CLUSTER]
         assert len(col) == 1
@@ -232,7 +230,7 @@ class TestMultiClusterMap:
         assert item
         assert key
         assert isinstance(item, pyslurm.db.Job)
-        assert len(col) == col_len-1
+        assert len(col) == col_len - 1
 
     def test_update(self):
         col = self._create_collection()
@@ -243,7 +241,7 @@ class TestMultiClusterMap:
             50: pyslurm.db.Job(50),
         }
         col.update(col_update)
-        assert len(col) == col_len+2
+        assert len(col) == col_len + 2
         assert len(col[LOCAL_CLUSTER]) == 4
         assert 30 in col
         assert 50 in col
@@ -255,18 +253,18 @@ class TestMultiClusterMap:
             }
         }
         col.update(col_update)
-        assert len(col) == col_len+4
+        assert len(col) == col_len + 4
         assert len(col[LOCAL_CLUSTER]) == 4
         assert len(col["new_cluster"]) == 2
         assert 80 in col
         assert 50 in col
-        
+
         col_update = {
             200: pyslurm.db.Job(200, cluster=OTHER_CLUSTER),
             300: pyslurm.db.Job(300, cluster=OTHER_CLUSTER),
         }
         col.update({OTHER_CLUSTER: col_update})
-        assert len(col) == col_len+6
+        assert len(col) == col_len + 6
         assert len(col[OTHER_CLUSTER]) == 4
         assert 200 in col
         assert 300 in col
@@ -278,11 +276,11 @@ class TestMultiClusterMap:
     def test_pop(self):
         col = self._create_collection()
         col_len = len(col)
-        
+
         item = col.pop(1)
         assert item
         assert item.id == 1
-        assert len(col) == col_len-1
+        assert len(col) == col_len - 1
 
         item = col.pop(999, default="def")
         assert item == "def"
@@ -339,7 +337,7 @@ class TestMultiClusterMap:
             "test_cluster": {
                 1000: pyslurm.db.Job(1000, cluster="test_cluster"),
                 1001: pyslurm.db.Job(1001, cluster="test_cluster"),
-            }
+            },
         }
         other_col = pyslurm.db.Jobs()
         other_col.update(other_data)
@@ -348,7 +346,7 @@ class TestMultiClusterMap:
         assert isinstance(col, pyslurm.xcollections.MultiClusterMap)
         assert isinstance(col, pyslurm.db.Jobs)
         assert len(col.clusters()) == 3
-        assert len(col) == col_len+3 
+        assert len(col) == col_len + 3
 
         dict_data = {
             10: pyslurm.db.Job(10),
@@ -360,7 +358,7 @@ class TestMultiClusterMap:
         assert isinstance(col, pyslurm.db.Jobs)
         assert len(col.clusters()) == 3
         assert len(col[LOCAL_CLUSTER]) == 5
-        assert len(col) == col_len+5
+        assert len(col) == col_len + 5
 
     def test_or(self):
         col = self._create_collection()
@@ -374,7 +372,7 @@ class TestMultiClusterMap:
             "test_cluster": {
                 1000: pyslurm.db.Job(1000, cluster="test_cluster"),
                 1001: pyslurm.db.Job(1001, cluster="test_cluster"),
-            }
+            },
         }
         other_col = pyslurm.db.Jobs()
         other_col.update(other_data)
@@ -383,7 +381,7 @@ class TestMultiClusterMap:
         assert isinstance(_col, pyslurm.xcollections.MultiClusterMap)
         assert isinstance(_col, pyslurm.db.Jobs)
         assert len(_col.clusters()) == 3
-        assert len(_col) == col_len+3 
+        assert len(_col) == col_len + 3
 
         dict_data = {
             10: pyslurm.db.Job(10),
@@ -395,4 +393,4 @@ class TestMultiClusterMap:
         assert isinstance(_col, pyslurm.db.Jobs)
         assert len(_col.clusters()) == 3
         assert len(_col[LOCAL_CLUSTER]) == 5
-        assert len(_col) == col_len+5
+        assert len(_col) == col_len + 5

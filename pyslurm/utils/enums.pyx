@@ -76,12 +76,22 @@ class SlurmEnum(str, Enum, metaclass=DocstringSupport):
         return name.upper()
 
     @classmethod
-    def from_flag(cls, flag, default):
+    def from_flag(cls, flags, default):
         out = cls(default)
         for item in cls:
-            if item._flag & flag:
+            if flags & item._flag or flags == item._flag:
                 return item
         return out
+
+    @classmethod
+    def from_value(cls, value, default):
+        # Unlike from_flag, this matches on the exact value. Use it for Slurm
+        # members that hold one of a set of consecutive constants rather than
+        # a bitmask.
+        for item in cls:
+            if item._flag == value:
+                return item
+        return cls(default)
 
 
 class SlurmFlag(Flag, metaclass=DocstringSupport):
@@ -101,13 +111,36 @@ class SlurmFlag(Flag, metaclass=DocstringSupport):
         return obj
 
     @classmethod
+    def from_int(cls, value):
+        # Any bit that has no member here is silently dropped, so that Flags
+        # a newer Slurm version may set do not break decoding.
+        known = 0
+        for flag in cls:
+            known |= flag.value
+
+        return cls(int(value) & known)
+
+    @classmethod
     def from_list(cls, inp):
         out = cls(0)
-        for flag in cls:
-            if flag.name in inp:
-                out |= flag
+        for item in inp:
+            if isinstance(item, cls):
+                out |= item
+                continue
+
+            try:
+                out |= cls[str(item).upper()]
+            except KeyError:
+                raise ValueError(
+                    f"Invalid {cls.__name__}: {item}. Possible values are: "
+                    f"{[flag.name for flag in cls]}"
+                ) from None
 
         return out
+
+    def to_list(self):
+        """Names of all the Flags that are set, as a list of strings."""
+        return [flag.name for flag in self.__class__ if flag in self]
 
     def _get_flags_cleared(self):
         val = self.value

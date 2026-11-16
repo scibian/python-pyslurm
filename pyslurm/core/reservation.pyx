@@ -177,8 +177,16 @@ cdef class Reservation:
                            "Reservation instance?")
         return self.name
 
-    def to_dict(self):
+    def to_dict(self, recursive = False):
         """Reservation information formatted as a dictionary.
+
+        Args:
+            recursive (bool, optional):
+                When this is set to `True`, everything is converted into plain,
+                JSON-serializable data. `flags` becomes a [list][] of [str][]
+                and `reoccurrence` a plain [str][]. Default is `False`, which
+                keeps [pyslurm.ReservationFlags][] and
+                [pyslurm.ReservationReoccurrence][] objects.
 
         Returns:
             (dict): Reservation information as dict
@@ -189,7 +197,7 @@ cdef class Reservation:
             >>> resv_dict = resv.to_dict()
             >>> print(resv_dict)
         """
-        return instance_to_dict(self)
+        return instance_to_dict(self, recursive)
 
     @staticmethod
     def load(name):
@@ -251,7 +259,9 @@ cdef class Reservation:
 
         self.name = self._error_or_name()
         new_name = slurm_create_reservation(self.umsg)
-        free(new_name)
+        # Since 26.05, the returned name is allocated with xmalloc, so it must
+        # be released with xfree instead of free.
+        xfree(new_name)
         verify_rpc(slurm_errno())
         return self
 
@@ -502,7 +512,7 @@ cdef class Reservation:
 
     @property
     def flags(self):
-        return ReservationFlags(self.info.flags)
+        return ReservationFlags.from_int(self.info.flags)
 
     @flags.setter
     def flags(self, val):
@@ -512,8 +522,6 @@ cdef class Reservation:
 
         self.info.flags = flag.value
         self.umsg.flags = flag._get_flags_cleared()
-
-    # TODO: RESERVE_FLAG_SKIP ?
 
 
 class ReservationFlags(SlurmFlag):
@@ -534,6 +542,14 @@ class ReservationFlags(SlurmFlag):
     NO_JOB_HOLD_AFTER_END = slurm.RESERVE_FLAG_NO_HOLD_JOBS
     OVERLAP               = slurm.RESERVE_FLAG_OVERLAP
     ALL_NODES             = slurm.RESERVE_FLAG_ALL_NODES
+    SKIP                  = slurm.RESERVE_FLAG_SKIP
+    SCHED_FAILED          = slurm.RESERVE_FLAG_SCHED_FAILED
+    REPLACE               = slurm.RESERVE_FLAG_REPLACE
+    REPLACE_DOWN          = slurm.RESERVE_FLAG_REPLACE_DOWN
+    TIME_FLOAT            = slurm.RESERVE_FLAG_TIME_FLOAT
+    FORCE_START           = slurm.RESERVE_FLAG_FORCE_START
+    GRES_REQUIRED         = slurm.RESERVE_FLAG_GRES_REQ
+    TRES_PER_NODE         = slurm.RESERVE_TRES_PER_NODE
 
 
 class ReservationReoccurrence(SlurmEnum):
